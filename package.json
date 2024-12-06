@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "update": "pnpm update --recursive --interactive --latest"
+  },
+  "packageManager": "pnpm@9.13.2",
+  "devDependencies": {
+    "ensure-license-notice": "^0.2.0",
+    "husky": "^9.0.7",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.4"
+  },
+  "lint-staged": {
+    "*": [
+      "ensure-license-notice"
+    ],
+    "pdm.lock": [
+      ".venv/bin/python3 tools/pdm_export.py --check"
+    ]
+  }
+}

@@ -1,0 +1,65 @@
+[project]
+name = "engine"
+version = "0.1.0"
+
+# numba could not be installed with requires-python = "~=3.12.7"
+requires-python = "==3.12.7"
+
+dependencies = [
+  "click~=8.1",
+  "einops~=0.8",
+  "gradio~=5.8",
+  "huggingface-hub[hf_transfer]~=0.26",
+  "lightning~=2.4",
+  "numpy~=2.0",
+  "questionary~=2.0",
+  "torch~=2.5",
+  "tqdm~=4.67",
+  "transformers~=4.47",
+  "umap-learn[plot]~=0.5",
+  "wandb~=0.19",
+  "webdataset~=0.2",
+]
+
+[dependency-groups]
+dev = [
+  "autoflake~=2.3",
+  "gprof2dot~=2024.6",
+  "ipykernel~=6.29",
+  "ipywidgets~=8.1",
+  "isort~=5.13",
+  "nbformat~=5.10",
+  "tuna~=0.5",
+  "yapf~=0.43",
+]
+
+[[tool.pdm.source]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+verify_ssl = true
+include_packages = ["torch", "torchvision", "torchaudio"]
+exclude_packages = ["*"]
+
+[tool.pdm.scripts]
+export = { call = "tools.pdm_export:main" }
+format = { call = "tools.format:main" }
+
+[tool.pdm.build]
+package-dir = "."
+include = ["engine", "notes", "tools"]
+
+[tool.yapf]
+based_on_style = "yapf"
+blank_line_before_nested_class_or_def = false
+blank_lines_around_top_level_definition = 1
+column_limit = 160
+join_multiple_lines = true
+
+[tool.pyright]
+include = ["engine"]
+exclude = ["data"]
+typeCheckingMode = "standard"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

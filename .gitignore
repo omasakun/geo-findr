@@ -1,0 +1,28 @@
+# private / large files
+
+/data
+
+.env
+
+# auto generated
+
+__pycache__/
+.ipynb_checkpoints/
+.pnpm-store/
+.venv/
+node_modules/
+target/
+
+.pdm-python
+*.tsbuildinfo
+
+# logs
+
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS-specific files
+
+.DS_Store

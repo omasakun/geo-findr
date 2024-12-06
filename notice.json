@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/ensure-license-notice/schema.json",
+  "licenseHash": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+  "notice": [
+    "Copyright 2024 omasakun <omasakun@o137.net>.",
+    "This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.",
+    "If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/."
+  ],
+  "excludedPrefix": [".git/", ".husky/", "LICENSE"],
+  "excludedSuffix": [
+    ".editorconfig",
+    ".gitignore",
+    ".json",
+    ".lock",
+    ".md",
+    ".npmrc",
+    ".png",
+    ".prettierrc",
+    ".svg",
+    ".toml",
+    ".tool-versions",
+    ".txt",
+    ".yaml",
+    ".wav"
+  ],
+  "excluded": []
+}
