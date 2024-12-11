@@ -3,8 +3,13 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 // If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import dedent from 'dedent'
 import * as msgpackr from 'msgpackr'
+import { join } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
+
+export const ROOT = new URL('../../..', import.meta.url).pathname
+export const DATA = join(ROOT, 'data')
 
 export function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -20,12 +25,40 @@ export function pick<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   return result
 }
 
+/** Shuffle an array in place */
+export function shuffle<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const temp = array[i]
+    array[i] = array[j]
+    array[j] = temp
+  }
+  return array
+}
+
 export function encodeMsgpackGzip(data: unknown): Buffer {
   return gzipSync(msgpackr.encode(data))
 }
 
 export function decodeMsgpackGzip<T = unknown>(buffer: Buffer): T {
   return msgpackr.decode(gunzipSync(buffer))
+}
+
+export function deterministicJsonStringify(data: unknown): string {
+  return JSON.stringify(data, (key, value) => {
+    if (typeof value === 'object' && value !== null) {
+      return Object.keys(value)
+        .sort()
+        .reduce(
+          (acc, key) => {
+            acc[key] = value[key]
+            return acc
+          },
+          {} as Record<string, unknown>,
+        )
+    }
+    return value
+  })
 }
 
 /** Uniformly distributed over the surface of the sphere */
@@ -96,4 +129,25 @@ export function geoguessrScore(distance: number, mapSize = 14916862): number {
     There are lots of smart geoguessers and it wouldn't surprise me if someone has derived it before, but it's the first time I've seen a precise calculation with a single whole number as a constant.
   */
   return 5000 * Math.exp((-10000 * distance) / mapSize)
+}
+
+export function exportToPCD(items: { x: number; y: number; z: number; color: number }[]) {
+  let output =
+    dedent`
+    # .PCD v0.7 - Point Cloud Data file format
+    VERSION 0.7
+    FIELDS x y z rgb
+    SIZE 4 4 4 4
+    TYPE F F F U
+    COUNT 1 1 1 1
+    WIDTH ${items.length}
+    HEIGHT 1
+    VIEWPOINT 0 0 0 1 0 0 0
+    POINTS ${items.length}
+    DATA ascii
+  ` + '\n'
+  for (const { x, y, z, color } of items) {
+    output += `${x} ${y} ${z} ${color}\n`
+  }
+  return output
 }

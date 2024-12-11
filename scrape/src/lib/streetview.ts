@@ -8,6 +8,7 @@ import { createFetchClient } from './client.js'
 import { pDouble, pEnum, pInt, ProtobufValue, serialize } from './protobuf.js'
 import { decodeMsgpackGzip, encodeMsgpackGzip } from './utils.js'
 
+const defaultLocale = 'en-US'
 const defaultFetch = createFetchClient()
 
 export interface LocalizedText {
@@ -75,7 +76,7 @@ export async function searchPanorama(
   lat: number,
   lon: number,
   radius: number,
-  { locale = 'en-US', searchThirdParty = false, client = defaultFetch } = {},
+  { locale = defaultLocale, searchThirdParty = false, client = defaultFetch } = {},
 ) {
   const url = panoramaSearchUrl(lat, lon, radius, locale, searchThirdParty)
   const text = await client.getText(url)
@@ -86,7 +87,7 @@ export async function searchPanorama(
 
 export async function fetchPanoramaMetadata(
   id: string,
-  { locale = 'en-US', client = defaultFetch } = {},
+  { locale = defaultLocale, client = defaultFetch } = {},
 ) {
   const url = panoramaMetadataUrl(id, locale)
   const text = await client.getText(url)
@@ -219,21 +220,19 @@ function parseResponse(response: any): PanoramaMetadata {
       return [x[0], { year: get(1, 0), month: get(1, 1), day: get(1, 2) }]
     }),
   )
-  const others = ((get(5, 0, 3, 0) as any[]) ?? [])
-    .map((item: any, i: number) => {
-      const get = (...path: number[]) => path.reduce((x, i) => x?.[i], item) ?? undefined
-      return {
-        id: get(0, 1),
-        lat: get(2, 0, 2),
-        lon: get(2, 0, 3),
-        elevation: zeroUndef(get(2, 1, 0)),
-        heading: zeroUndef(get(2, 2, 0)),
-        pitch: zeroUndef(90 - get(2, 2, 1)),
-        roll: get(2, 2, 2),
-        date: otherDates.get(i), // TODO: neightbors seems to have the same date as the main panorama
-      } satisfies CorePanoramaMetadata
-    })
-    .filter((x) => x.id !== id)
+  const others = ((get(5, 0, 3, 0) as any[]) ?? []).map((item: any, i: number) => {
+    const get = (...path: number[]) => path.reduce((x, i) => x?.[i], item) ?? undefined
+    return {
+      id: get(0, 1),
+      lat: get(2, 0, 2),
+      lon: get(2, 0, 3),
+      elevation: zeroUndef(get(2, 1, 0)),
+      heading: zeroUndef(get(2, 2, 0)),
+      pitch: zeroUndef(90 - get(2, 2, 1)),
+      roll: get(2, 2, 2),
+      date: otherDates.get(i), // TODO: neightbors seems to have the same date as the main panorama
+    } satisfies CorePanoramaMetadata
+  })
 
   return {
     id,
@@ -249,9 +248,9 @@ function parseResponse(response: any): PanoramaMetadata {
     countryCode: get(5, 0, 1, 4),
     date: { year: get(6, 7, 0), month: get(6, 7, 1), day: get(6, 7, 2) },
     historical: others
-      .filter((_, i) => otherDates.has(i))
+      .filter((x, i) => otherDates.has(i) && x.id !== id)
       .sort((a, b) => comparePanoramaDates(a.date!, b.date!)),
-    neighbors: others.filter((_, i) => !otherDates.has(i)),
+    neighbors: others.filter((x, i) => !otherDates.has(i) && x.id !== id),
   }
 }
 
