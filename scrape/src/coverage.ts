@@ -3,65 +3,132 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 // If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+// while true; do npx tsx src/coverage.ts || true; done
+
 import { SingleBar } from 'cli-progress'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createFetchClient } from './lib/client.js'
 import { PanoramaSearchDatabase } from './lib/database.js'
 import {
-  generateIcosphereVertices,
+  generateIcosahedron,
   getIcosphereHaversineDistance,
-  latLonToVec3,
+  subdivideIcosphere,
+  Vec3,
   vec3ToLatLon,
 } from './lib/icosphere.js'
 import { searchPanorama } from './lib/streetview.js'
-import { DATA, exportToPCD, shuffle } from './lib/utils.js'
+import { DATA, exportToPCD } from './lib/utils.js'
 
-const subdivisions = 5
+const RADIUS_MARGIN = 1.2
+const VERIFY = false // Verify that the child is indeed uncovered. Adjust the radius margin if errors occur
+const SUBDIVISIONS = 20
+const client = createFetchClient({ concurrencyLimit: 100, retryLimit: 4 })
 
 const searchDB = PanoramaSearchDatabase.open(join(DATA, 'streetview.sqlite3'))
 
-async function searchWithCache(lat: number, lon: number, radius: number) {
-  const cache = searchDB.select({ lat, lon, radius, options: {} })
+async function searchWithCache(lat: number, lon: number, radius: number, searchThirdParty = false) {
+  const cache = searchDB.select({ lat, lon, radius, options: { searchThirdParty } })
   if (cache) return cache
-  const response = await searchPanorama(lat, lon, radius)
-  searchDB.insert({ lat, lon, radius, options: {} }, response)
+  const response = await searchPanorama(lat, lon, radius, { client, searchThirdParty })
+  searchDB.insert({ lat, lon, radius, options: { searchThirdParty } }, response)
   return response
 }
 
-const baseRadius = getIcosphereHaversineDistance(subdivisions)
-let locations = generateIcosphereVertices(subdivisions).map(vec3ToLatLon)
-let results: Result[] = []
+async function isCovered(lat: number, lon: number, radius: number) {
+  const response = await searchWithCache(lat, lon, radius)
+  const parsed = response.parse()
+  return !!parsed
+}
 
-interface Result {
+interface Result extends Vec3 {
   lat: number
   lon: number
   covered: boolean
+  error: boolean
 }
 
-shuffle(locations)
+let [baseVertices, faces] = generateIcosahedron()
+let radius = getIcosphereHaversineDistance(0) * RADIUS_MARGIN
+let vertices: Result[] = baseVertices.map((v) => ({
+  ...v,
+  ...vec3ToLatLon(v),
+  covered: false,
+  error: false,
+}))
+await Promise.all(vertices.map(async (v) => (v.covered = await isCovered(v.lat, v.lon, radius))))
+
+console.log(
+  `Subdivision #0 (radius: ${(radius / 1000).toFixed(2)} km, ${vertices.length} vertices)`,
+)
 
 const bar = new SingleBar({})
-bar.start(locations.length, 0)
-while (locations.length > 0) {
-  const { lat, lon } = locations.pop()!
-  const radius = baseRadius * 1.1
-  const response = await searchWithCache(lat, lon, radius)
-  const parsed = response.parse()
-  // results.push({ lat, lon, covered: !!parsed })
-  results.push({ lat: parsed?.lat ?? lat, lon: parsed?.lon ?? lon, covered: !!parsed })
-  bar.increment()
+for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
+  let radius = getIcosphereHaversineDistance(subdivisions) * RADIUS_MARGIN
+
+  console.log(
+    `Subdivision #${subdivisions} (radius: ${(radius / 1000).toFixed(2)} km, ${vertices.length + faces.length * 1.5} vertices)`,
+  )
+
+  // 1. Remember the parent vertices to update them later
+  const parentsTodo = vertices.filter((v) => v.covered)
+
+  // 2. Subdivide
+  bar.start(Infinity, 0)
+  let tasks: Promise<unknown>[] = []
+  faces = subdivideIcosphere(vertices, faces, (v, parent1, parent2) => {
+    const child: Result = { ...v, ...vec3ToLatLon(v), covered: false, error: false }
+    if (!parent1.covered || !parent2.covered) {
+      // If any of the parents are uncovered, the child is also uncovered
+      // This is an optimization to reduce the number of API calls
+
+      // Verify that the child is indeed uncovered
+      if (VERIFY) {
+        tasks.push(
+          isCovered(child.lat, child.lon, radius).then((covered) => {
+            child.covered = covered
+            if (covered) {
+              child.error = true
+              console.error('Child is covered but parents are not')
+            }
+            bar.increment()
+          }),
+        )
+      }
+    } else {
+      tasks.push(
+        isCovered(child.lat, child.lon, radius).then((covered) => {
+          child.covered = covered
+          bar.increment()
+        }),
+      )
+    }
+    return child
+  })
+
+  bar.setTotal(tasks.length)
+  await Promise.all(tasks)
+  bar.stop()
+
+  // 3. Update the parent vertices
+  bar.start(parentsTodo.length, 0)
+  await Promise.all(
+    parentsTodo.map(async (v) =>
+      isCovered(v.lat, v.lon, radius).then((covered) => {
+        v.covered = covered
+        bar.increment()
+      }),
+    ),
+  )
+  bar.stop()
+
+  writeFileSync(
+    'coverage.pcd',
+    exportToPCD(
+      vertices.map((v) => ({
+        ...v,
+        color: v.error ? 0xff0000 : v.covered ? 0x63d676 : 0x3c7fde, // Green for covered, Blue for uncovered
+      })),
+    ),
+  )
 }
-
-bar.stop()
-
-console.log(`Covered: ${results.filter((r) => r.covered).length} / ${results.length}`)
-
-writeFileSync(
-  'output.pcd',
-  exportToPCD(
-    results.map(({ lat, lon, covered }) => ({
-      ...latLonToVec3(lat, lon),
-      color: covered ? 0x63d676 : 0x3c7fde, // Green for covered, Blue for uncovered
-    })),
-  ),
-)

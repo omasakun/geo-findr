@@ -147,7 +147,11 @@ export function exportToPCD(items: { x: number; y: number; z: number; color: num
     DATA ascii
   ` + '\n'
   for (const { x, y, z, color } of items) {
-    output += `${x} ${y} ${z} ${color}\n`
+    output += `${x} ${y} ${-z} ${color}\n`
   }
   return output
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
