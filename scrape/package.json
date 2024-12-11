@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx src/main.ts"
+  },
+  "packageManager": "pnpm@9.13.2",
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "msgpackr": "^1.11.2",
+    "p-limit": "^6.1.0",
+    "sharp": "^0.33.5",
+    "undici": "^7.1.0"
+  }
+}

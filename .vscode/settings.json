@@ -30,7 +30,7 @@
   "files.exclude": {
     ".pdm-build": true,
     ".venv": true,
-    "node_modules": true,
+    "**/node_modules": true,
     "target": true,
     "**/__pycache__": true
   },
@@ -38,7 +38,7 @@
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
     ".venv": true,
-    "node_modules": true,
+    "**/node_modules": true,
     "target": true,
     "data": true
   }
