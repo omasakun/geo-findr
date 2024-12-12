@@ -3,18 +3,17 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 // If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { searchPanorama } from './streetview.js'
+import { fetchPanoramaImage, searchPanorama } from './lib/streetview.js'
 
-for (const [lat, lon] of Array.from({ length: 100 }, (_, i) => [
-  ((Math.random() - 0.5) * 180) << 0,
-  ((Math.random() - 0.5) * 360) << 0,
-])) {
-  const res = (await searchPanorama(lat, lon, 10000000, { searchThirdParty: false })).parse()
-  const pos = `${lat.toString().padStart(4)},${lon.toString().padStart(4)}`
-  if (res) {
-    const error = `${(res.lat - lat).toFixed(1).padStart(6)},${(res.lon - lon).toFixed(1).padStart(6)}`
-    console.log(`${pos} : ${error} : ${res.id}`)
-  } else {
-    console.log(`${pos} not found`)
-  }
-}
+const pano = (
+  await searchPanorama(32.9664691, -87.1676722, 1000, { searchThirdParty: false })
+).parse()!
+console.log(`lat: ${pano.lat}, lon: ${pano.lon}, id: ${pano.id}`)
+
+let zoom = pano.sizes.findIndex((size) => size.width >= 4096)
+if (zoom === -1) zoom = pano.sizes.length - 1
+const image = await fetchPanoramaImage(pano, { zoom })
+
+await image.toFile('pano.jpg')
+await image.toFile('pano.webp')
+await image.toFile('pano.avif')

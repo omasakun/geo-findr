@@ -22,7 +22,7 @@ import { DATA, exportToPCD } from './lib/utils.js'
 
 const RADIUS_MARGIN = 1.2
 const VERIFY = false // Verify that the child is indeed uncovered. Adjust the radius margin if errors occur
-const SUBDIVISIONS = 20
+const SUBDIVISIONS = 11
 const client = createFetchClient({ concurrencyLimit: 100, retryLimit: 4 })
 // const TORS = 8
 // const client = createTorClient((i) => `socks5h://${i}:pass@localhost:${19000 + (i % TORS)}`, {

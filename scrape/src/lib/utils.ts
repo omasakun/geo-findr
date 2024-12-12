@@ -5,7 +5,8 @@
 
 import dedent from 'dedent'
 import * as msgpackr from 'msgpackr'
-import { join } from 'node:path'
+import { existsSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 
 export const ROOT = new URL('../../..', import.meta.url).pathname
@@ -205,5 +206,38 @@ export class TaskQueue {
 
   size(): number {
     return this.taskQueue.length + this.running
+  }
+}
+
+export class Lock {
+  private locked = false
+  private waiting: (() => void)[] = []
+
+  async acquire(): Promise<void> {
+    if (this.locked) {
+      await new Promise<void>((resolve) => {
+        this.waiting.push(resolve)
+      })
+    }
+    this.locked = true
+  }
+
+  release(): void {
+    if (this.waiting.length > 0) {
+      const resolve = this.waiting.shift()
+      if (resolve) {
+        resolve()
+      }
+    } else {
+      this.locked = false
+    }
+  }
+}
+
+export function makeDirectoryForFile(filename: string): void {
+  const directory = dirname(filename)
+
+  if (!existsSync(directory)) {
+    mkdirSync(directory, { recursive: true })
   }
 }
