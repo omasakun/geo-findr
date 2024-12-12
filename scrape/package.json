@@ -19,6 +19,6 @@
     "msgpackr": "^1.11.2",
     "p-limit": "^6.1.0",
     "sharp": "^0.33.5",
-    "undici": "^7.1.0"
+    "socks-proxy-agent": "^8.0.5"
   }
 }

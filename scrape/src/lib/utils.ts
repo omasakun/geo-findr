@@ -155,3 +155,55 @@ export function exportToPCD(items: { x: number; y: number; z: number; color: num
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export class TaskQueue {
+  private concurrencyLimit: number
+  private running: number
+  private taskQueue: (() => Promise<void>)[]
+
+  constructor(concurencyLimit: number) {
+    this.concurrencyLimit = concurencyLimit
+    this.running = 0
+    this.taskQueue = []
+  }
+
+  private async runTask(task: () => Promise<void>): Promise<void> {
+    try {
+      this.running++
+      await task()
+    } finally {
+      this.running--
+      this.next()
+    }
+  }
+
+  private next(): void {
+    if (this.running < this.concurrencyLimit) {
+      const nextTask = this.taskQueue.shift()
+      if (nextTask) {
+        this.runTask(nextTask)
+      }
+    }
+  }
+
+  add(task: () => Promise<void>): void {
+    this.taskQueue.push(task)
+    this.next()
+  }
+
+  async waitAll(): Promise<void> {
+    while (this.taskQueue.length > 0 || this.running > 0) {
+      await sleep(100)
+    }
+  }
+
+  async waitQueue(): Promise<void> {
+    while (this.taskQueue.length > 0) {
+      await sleep(100)
+    }
+  }
+
+  size(): number {
+    return this.taskQueue.length + this.running
+  }
+}

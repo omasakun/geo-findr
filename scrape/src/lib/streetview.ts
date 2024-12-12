@@ -45,9 +45,11 @@ export interface PanoramaMetadata extends CorePanoramaMetadata {
 
 export class SearchPanoramaResponse {
   constructor(public data: any) {}
+  isFound(): boolean {
+    return this.data[0][0][0] === 0
+  }
   parse(): PanoramaMetadata | null {
-    const status = this.data[0][0][0]
-    if (status !== 0) return null
+    if (!this.isFound()) return null
     return parseResponse(this.data[0][1])
   }
   encode() {

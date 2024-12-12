@@ -3,7 +3,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 // If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// while true; do npx tsx src/coverage.ts || true; done
+// while true; do npx tsx --max-old-space-size=16000 src/coverage.ts || true; done
 
 import { SingleBar } from 'cli-progress'
 import { writeFileSync } from 'node:fs'
@@ -24,6 +24,12 @@ const RADIUS_MARGIN = 1.2
 const VERIFY = false // Verify that the child is indeed uncovered. Adjust the radius margin if errors occur
 const SUBDIVISIONS = 20
 const client = createFetchClient({ concurrencyLimit: 100, retryLimit: 4 })
+// const TORS = 8
+// const client = createTorClient((i) => `socks5h://${i}:pass@localhost:${19000 + (i % TORS)}`, {
+//   clients: TORS * 10,
+//   concurrencyLimit: TORS * 10 * 100,
+//   retryLimit: 4,
+// })
 
 const searchDB = PanoramaSearchDatabase.open(join(DATA, 'streetview.sqlite3'))
 
@@ -32,13 +38,13 @@ async function searchWithCache(lat: number, lon: number, radius: number, searchT
   if (cache) return cache
   const response = await searchPanorama(lat, lon, radius, { client, searchThirdParty })
   searchDB.insert({ lat, lon, radius, options: { searchThirdParty } }, response)
-  return response
+  const parsed = response.parse()
+  return { response, pano_id: parsed?.id, pano_lat: parsed?.lat, pano_lon: parsed?.lon }
 }
 
 async function isCovered(lat: number, lon: number, radius: number) {
   const response = await searchWithCache(lat, lon, radius)
-  const parsed = response.parse()
-  return !!parsed
+  return !!response.pano_id
 }
 
 interface Result extends Vec3 {
@@ -67,8 +73,12 @@ for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
   let radius = getIcosphereHaversineDistance(subdivisions) * RADIUS_MARGIN
 
   console.log(
-    `Subdivision #${subdivisions} (radius: ${(radius / 1000).toFixed(2)} km, ${vertices.length + faces.length * 1.5} vertices)`,
+    `Subdivision #${subdivisions} (radius: ${(radius / 1000).toFixed(2)} km, previously: ${vertices.length} vertices)`,
   )
+
+  // 0. Remove the faces that are not covered
+  // This is an optimization to reduce the memory usage
+  if (!VERIFY) faces = faces.filter((face) => face.some((v) => vertices[v].covered))
 
   // 1. Remember the parent vertices to update them later
   const parentsTodo = vertices.filter((v) => v.covered)

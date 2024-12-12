@@ -53,12 +53,22 @@ export class PanoramaSearchDatabase {
       .run(deterministicJsonStringify(request), response.encode(), pano?.id, pano?.lat, pano?.lon)
   }
 
-  select(request: SearchPanoramaRequest): SearchPanoramaResponse | null {
+  select(request: SearchPanoramaRequest): {
+    response: SearchPanoramaResponse
+    pano_id: string | null
+    pano_lat: number | null
+    pano_lon: number | null
+  } | null {
     const row: any = this.db
       .prepare('SELECT * FROM panorama_search WHERE request = ?')
       .get(deterministicJsonStringify(request))
     if (!row) return null
-    return SearchPanoramaResponse.decode(row.response)
+    return {
+      response: SearchPanoramaResponse.decode(row.response),
+      pano_id: row.pano_id,
+      pano_lat: row.pano_lat,
+      pano_lon: row.pano_lon,
+    }
   }
 
   count() {
