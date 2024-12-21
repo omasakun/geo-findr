@@ -24,6 +24,11 @@ export class ProtoInt {
   constructor(public value: number) {}
 }
 
+/** Represents a value that will be serialized as a float. */
+export class ProtoFloat {
+  constructor(public value: number) {}
+}
+
 /** Represents a value that will be serialized as a double. */
 export class ProtoDouble {
   constructor(public value: number) {}
@@ -58,6 +63,8 @@ function serializeField(key: string, value: ProtobufValue): string[] {
       return [`!${key}e${value.value}`]
     case value instanceof ProtoInt:
       return [`!${key}i${value.value}`]
+    case value instanceof ProtoFloat:
+      return [`!${key}f${value.value}`]
     case value instanceof ProtoDouble:
       return [`!${key}d${value.value}`]
     case Array.isArray(value):
@@ -93,7 +100,7 @@ function deserializeItems(items: string[]): Record<string, ProtobufValue> {
 
   while (items.length > 0) {
     const item = items.shift()!
-    const [, key, type, value] = item.match(/^([0-9]+)([bidsme])(.*)$/)!
+    const [, key, type, value] = item.match(/^([0-9]+)([bifdsme])(.*)$/)!
 
     switch (type) {
       case 'b':
@@ -101,6 +108,9 @@ function deserializeItems(items: string[]): Record<string, ProtobufValue> {
         break
       case 'i':
         put(key, new ProtoInt(parseInt(value, 10)))
+        break
+      case 'f':
+        put(key, new ProtoFloat(parseFloat(value)))
         break
       case 'd':
         put(key, new ProtoDouble(parseFloat(value)))

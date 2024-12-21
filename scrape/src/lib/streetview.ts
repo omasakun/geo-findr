@@ -43,6 +43,16 @@ export interface PanoramaMetadata extends CorePanoramaMetadata {
   neighbors: CorePanoramaMetadata[]
 }
 
+export interface LocationInfo {
+  areaLevel3?: string
+  road1?: string
+  road2?: string
+  areaLevel2?: string
+  postalCode?: string
+  areaLevel1?: string
+  countryCode?: string
+}
+
 export class SearchPanoramaResponse {
   constructor(public data: any) {}
   isFound(): boolean {
@@ -70,6 +80,29 @@ export class PanoramaMetadataResponse {
   }
   static decode(buffer: Buffer) {
     return new PanoramaMetadataResponse(decodeMsgpackGzip(buffer))
+  }
+}
+
+export class LocationInfoResponse {
+  constructor(public data: any) {}
+  parse(): LocationInfo {
+    const response = this.data[0]
+    const get = (...path: number[]) => path.reduce((x, i) => x?.[i], response) ?? undefined
+    return {
+      areaLevel3: get(2, 183, 1, 0) ?? undefined,
+      road1: get(2, 183, 1, 1) ?? undefined,
+      road2: get(2, 183, 1, 2) ?? undefined,
+      areaLevel2: get(2, 183, 1, 3) ?? undefined,
+      postalCode: get(2, 183, 1, 4) ?? undefined,
+      areaLevel1: get(2, 183, 1, 5) ?? undefined,
+      countryCode: get(2, 183, 1, 6) ?? undefined,
+    }
+  }
+  encode() {
+    return encodeMsgpackGzip(this.data)
+  }
+  static decode(buffer: Buffer) {
+    return new LocationInfoResponse(decodeMsgpackGzip(buffer))
   }
 }
 
@@ -136,6 +169,18 @@ export async function fetchPanoramaImage(
       })),
     )
     .resize(width, height)
+}
+
+export async function fetchLocationInfo(
+  lat: number,
+  lon: number,
+  { locale = defaultLocale, client = defaultFetch } = {},
+) {
+  const url = locationInfoUrl(lat, lon, locale)
+  const text = await client.getText(url)
+  const healed = text.match(/\n(.*)/)?.[1] ?? ''
+  const parsed = JSON.parse(`[${healed}]`)
+  return new LocationInfoResponse(parsed)
 }
 
 function panoramaSearchUrl(
@@ -210,6 +255,19 @@ function panoramaMetadataUrl(id: string, locale: string): string {
   } satisfies ProtobufValue
 
   return `https://www.google.com/maps/photometa/v1?authuser=0&hl=${lang}&gl=${country}&pb=${serialize(pb)}`
+}
+
+function locationInfoUrl(lat: number, lon: number, locale: string): string {
+  const [lang, country] = locale.split('-')
+
+  const pb = {
+    3: {
+      2: pDouble(lat),
+      3: pDouble(lon),
+    },
+  } satisfies ProtobufValue
+
+  return `https://www.google.com/maps/preview/reveal?hl=${lang}&gl=${country}&pb=${serialize(pb)}`
 }
 
 function parseResponse(response: any): PanoramaMetadata {
