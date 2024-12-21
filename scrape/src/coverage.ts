@@ -18,11 +18,12 @@ import {
   vec3ToLatLon,
 } from './lib/icosphere.js'
 import { searchPanorama } from './lib/streetview.js'
-import { DATA, exportToPCD } from './lib/utils.js'
+import { DATA, exportToPCD, TaskQueue } from './lib/utils.js'
 
 const RADIUS_MARGIN = 1.2
 const VERIFY = false // Verify that the child is indeed uncovered. Adjust the radius margin if errors occur
 const SUBDIVISIONS = 11
+const queue = new TaskQueue(100000)
 const client = createFetchClient({ concurrencyLimit: 100, retryLimit: 4 })
 // const TORS = 8
 // const client = createTorClient((i) => `socks5h://${i}:pass@localhost:${19000 + (i % TORS)}`, {
@@ -34,12 +35,12 @@ const client = createFetchClient({ concurrencyLimit: 100, retryLimit: 4 })
 const searchDB = PanoramaSearchDatabase.open(join(DATA, 'streetview.sqlite3'))
 
 async function searchWithCache(lat: number, lon: number, radius: number, searchThirdParty = false) {
-  const cache = searchDB.select({ lat, lon, radius, options: { searchThirdParty } })
+  const cache = searchDB.selectFast({ lat, lon, radius, options: { searchThirdParty } })
   if (cache) return cache
   const response = await searchPanorama(lat, lon, radius, { client, searchThirdParty })
   searchDB.insert({ lat, lon, radius, options: { searchThirdParty } }, response)
   const parsed = response.parse()
-  return { response, pano_id: parsed?.id, pano_lat: parsed?.lat, pano_lon: parsed?.lon }
+  return { pano_id: parsed?.id, pano_lat: parsed?.lat, pano_lon: parsed?.lon }
 }
 
 async function isCovered(lat: number, lon: number, radius: number) {
@@ -68,7 +69,7 @@ console.log(
   `Subdivision #0 (radius: ${(radius / 1000).toFixed(2)} km, ${vertices.length} vertices)`,
 )
 
-const bar = new SingleBar({})
+const bar = new SingleBar({ etaBuffer: 10000 })
 for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
   let radius = getIcosphereHaversineDistance(subdivisions) * RADIUS_MARGIN
 
@@ -85,7 +86,6 @@ for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
 
   // 2. Subdivide
   bar.start(Infinity, 0)
-  let tasks: Promise<unknown>[] = []
   faces = subdivideIcosphere(vertices, faces, (v, parent1, parent2) => {
     const child: Result = { ...v, ...vec3ToLatLon(v), covered: false, error: false }
     if (!parent1.covered || !parent2.covered) {
@@ -94,7 +94,7 @@ for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
 
       // Verify that the child is indeed uncovered
       if (VERIFY) {
-        tasks.push(
+        queue.add(() =>
           isCovered(child.lat, child.lon, radius).then((covered) => {
             child.covered = covered
             if (covered) {
@@ -106,7 +106,7 @@ for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
         )
       }
     } else {
-      tasks.push(
+      queue.add(() =>
         isCovered(child.lat, child.lon, radius).then((covered) => {
           child.covered = covered
           bar.increment()
@@ -116,24 +116,25 @@ for (let subdivisions = 1; subdivisions <= SUBDIVISIONS; subdivisions++) {
     return child
   })
 
-  bar.setTotal(tasks.length)
-  await Promise.all(tasks)
+  bar.setTotal(queue.length)
+  await queue.waitAll()
   bar.stop()
 
   // 3. Update the parent vertices
   bar.start(parentsTodo.length, 0)
-  await Promise.all(
-    parentsTodo.map(async (v) =>
+  parentsTodo.forEach((v) =>
+    queue.add(() =>
       isCovered(v.lat, v.lon, radius).then((covered) => {
         v.covered = covered
         bar.increment()
       }),
     ),
   )
+  await queue.waitAll()
   bar.stop()
 
   writeFileSync(
-    'coverage.pcd',
+    join(DATA, `coverage-div${subdivisions}.pcd`),
     exportToPCD(
       vertices.map((v) => ({
         ...v,

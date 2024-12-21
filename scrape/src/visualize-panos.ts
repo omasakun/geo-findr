@@ -16,7 +16,7 @@ const searchDB = PanoramaSearchDatabase.open(join(DATA, 'streetview.sqlite3'))
 
 const panos = new Map<string, { x: number; y: number; z: number; color: number }>()
 
-const bar = new SingleBar({})
+const bar = new SingleBar({ etaBuffer: 10000 })
 bar.start(searchDB.count(), 0)
 for (const { response } of searchDB.iterateAll()) {
   bar.increment()
@@ -31,4 +31,4 @@ for (const { response } of searchDB.iterateAll()) {
 bar.stop()
 
 console.log(`Found ${panos.size} panoramas`)
-writeFileSync('coverage.pcd', exportToPCD(Array.from(panos.values())))
+writeFileSync(join(DATA, 'panoloc.pcd'), exportToPCD(Array.from(panos.values())))

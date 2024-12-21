@@ -40,6 +40,7 @@ export class PanoramaSearchDatabase {
         pano_lon REAL
       );
       CREATE INDEX IF NOT EXISTS idx_panorama_search_request ON panorama_search (request);
+      CREATE INDEX IF NOT EXISTS idx_panorama_search_pano_id ON panorama_search (pano_id);
       `,
     )
   }
@@ -71,6 +72,34 @@ export class PanoramaSearchDatabase {
     }
   }
 
+  selectFast(request: SearchPanoramaRequest): {
+    pano_id: string | null
+    pano_lat: number | null
+    pano_lon: number | null
+  } | null {
+    const row: any = this.db
+      .prepare('SELECT pano_id, pano_lat, pano_lon FROM panorama_search WHERE request = ?')
+      .get(deterministicJsonStringify(request))
+    if (!row) return null
+    return {
+      pano_id: row.pano_id,
+      pano_lat: row.pano_lat,
+      pano_lon: row.pano_lon,
+    }
+  }
+
+  selectByPanoId(pano_id: string): {
+    request: SearchPanoramaRequest
+    response: SearchPanoramaResponse
+  } | null {
+    const row: any = this.db.prepare('SELECT * FROM panorama_search WHERE pano_id = ?').get(pano_id)
+    if (!row) return null
+    return {
+      request: JSON.parse(row.request) as SearchPanoramaRequest,
+      response: SearchPanoramaResponse.decode(row.response),
+    }
+  }
+
   count() {
     return this.db.prepare('SELECT COUNT(*) FROM panorama_search').pluck().get() as number
   }
@@ -84,6 +113,23 @@ export class PanoramaSearchDatabase {
       yield {
         request: JSON.parse(row.request) as SearchPanoramaRequest,
         response: SearchPanoramaResponse.decode(row.response),
+      }
+    }
+  }
+
+  *iterateAllFast(): IterableIterator<{
+    pano_id: string | null
+    pano_lat: number | null
+    pano_lon: number | null
+  }> {
+    const rows: Iterable<any> = this.db
+      .prepare('SELECT pano_id, pano_lat, pano_lon FROM panorama_search')
+      .iterate()
+    for (const row of rows) {
+      yield {
+        pano_id: row.pano_id,
+        pano_lat: row.pano_lat,
+        pano_lon: row.pano_lon,
       }
     }
   }

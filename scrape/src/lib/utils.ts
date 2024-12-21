@@ -159,30 +159,22 @@ export function sleep(ms: number): Promise<void> {
 
 export class TaskQueue {
   private concurrencyLimit: number
-  private running: number
-  private taskQueue: (() => Promise<void>)[]
+  private running = 0
+  private taskQueue = new Queue<() => Promise<void>>()
 
   constructor(concurencyLimit: number) {
     this.concurrencyLimit = concurencyLimit
-    this.running = 0
-    this.taskQueue = []
-  }
-
-  private async runTask(task: () => Promise<void>): Promise<void> {
-    try {
-      this.running++
-      await task()
-    } finally {
-      this.running--
-      this.next()
-    }
   }
 
   private next(): void {
     if (this.running < this.concurrencyLimit) {
-      const nextTask = this.taskQueue.shift()
-      if (nextTask) {
-        this.runTask(nextTask)
+      const task = this.taskQueue.shift()
+      if (task) {
+        this.running++
+        task().finally(() => {
+          this.running--
+          this.next()
+        })
       }
     }
   }
@@ -204,8 +196,29 @@ export class TaskQueue {
     }
   }
 
-  size(): number {
+  get length() {
     return this.taskQueue.length + this.running
+  }
+}
+
+class Queue<T> {
+  private pushStack: T[] = []
+  private shiftStack: T[] = []
+
+  push(value: T) {
+    this.pushStack.push(value)
+  }
+
+  shift() {
+    if (this.shiftStack.length === 0) {
+      this.shiftStack = this.pushStack.reverse()
+      this.pushStack = []
+    }
+    return this.shiftStack.pop()
+  }
+
+  get length() {
+    return this.pushStack.length + this.shiftStack.length
   }
 }
 
