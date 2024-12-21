@@ -1,6 +1,6 @@
 <!-- TODO: Translation -->
 <div align="center">
-  <h1>Geo Predictr</h1>
+  <h1>Geo Findr</h1>
   <p>A Personal Experiment
   </p>
 </div>

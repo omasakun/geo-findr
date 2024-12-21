@@ -8,9 +8,9 @@ requires-python = "==3.12.7"
 dependencies = [
   "click~=8.1",
   "einops~=0.8",
-  "gradio~=5.8",
-  "huggingface-hub[hf_transfer]~=0.26",
-  "lightning~=2.4",
+  "gradio~=5.9",
+  "huggingface-hub[hf_transfer]~=0.27",
+  "lightning~=2.5",
   "numpy~=2.0",
   "questionary~=2.0",
   "torch~=2.5",
@@ -23,14 +23,14 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "autoflake~=2.3",
-  "gprof2dot~=2024.6",
-  "ipykernel~=6.29",
-  "ipywidgets~=8.1",
-  "isort~=5.13",
-  "nbformat~=5.10",
-  "tuna~=0.5",
-  "yapf~=0.43",
+    "autoflake~=2.3",
+    "gprof2dot~=2024.6",
+    "ipykernel~=6.29",
+    "ipywidgets~=8.1",
+    "isort~=5.13",
+    "nbformat~=5.10",
+    "tuna~=0.5",
+    "yapf~=0.43",
 ]
 
 [[tool.pdm.source]]
