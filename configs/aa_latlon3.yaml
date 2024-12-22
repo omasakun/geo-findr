@@ -1,0 +1,10 @@
+attempt: latlon3
+dataset: geoguess-ai/panorama-div9
+
+batch_size: 16
+
+precision: bf16-mixed
+precision_matmul: medium
+
+steps: 100000
+learning_rate: 2.0e-4

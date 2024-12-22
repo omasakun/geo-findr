@@ -26,6 +26,7 @@ from torch import device as TorchDevice
 
 ROOT = Path(__file__).parent.parent.parent
 DATA = ROOT / "data"
+CODE = ROOT / "engine"
 TEMP_DIR = DATA / "temp"  # This can be None if you want to use the system default temp directory
 
 T = TypeVar("T")
@@ -49,10 +50,9 @@ def get_module_docstring(script: Path):
     return ast.get_docstring(tree)
 
 def random_name(syllable_count: int) -> str:
-  # https://www.reddit.com/r/tokipona/wiki/phonology_and_orthography/#wiki_phonotactics
   if not hasattr(random_name, 'syllables'):
     syllables = []
-    for c in "jklmnptsw":
+    for c in "hkmnrstwy":
       for v in "aeiou":
         if (c, v) in [("w", "o"), ("w", "u"), ("j", "i"), ("t", "i")]: continue
         syllables.append(c + v)
@@ -90,7 +90,7 @@ def change_loglevel(logger: str, level: int):
     logging.getLogger(logger).setLevel(prev_level)
 
 class DotDict(dict):
-  def __getattr__(self, key):
+  def __getattr__(self, key) -> Any:
     val = self[key]
     return DotDict(val) if type(val) is dict else val
 

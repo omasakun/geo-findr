@@ -13,6 +13,7 @@ dependencies = [
   "lightning~=2.5",
   "numpy~=2.0",
   "questionary~=2.0",
+  "requests~=2.32",
   "torch~=2.5",
   "tqdm~=4.67",
   "transformers~=4.47",
@@ -23,14 +24,14 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "autoflake~=2.3",
-    "gprof2dot~=2024.6",
-    "ipykernel~=6.29",
-    "ipywidgets~=8.1",
-    "isort~=5.13",
-    "nbformat~=5.10",
-    "tuna~=0.5",
-    "yapf~=0.43",
+  "autoflake~=2.3",
+  "gprof2dot~=2024.6",
+  "ipykernel~=6.29",
+  "ipywidgets~=8.1",
+  "isort~=5.13",
+  "nbformat~=5.10",
+  "tuna~=0.5",
+  "yapf~=0.43",
 ]
 
 [[tool.pdm.source]]
@@ -43,6 +44,7 @@ exclude_packages = ["*"]
 [tool.pdm.scripts]
 export = { call = "tools.pdm_export:main" }
 format = { call = "tools.format:main" }
+train = { call = "engine.train:main" }
 
 [tool.pdm.build]
 package-dir = "."

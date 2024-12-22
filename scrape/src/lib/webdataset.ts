@@ -78,6 +78,14 @@ export class WebDatasetWriter {
       await this.pack.finalize()
     }
   }
+
+  allShards(): string[] {
+    const shards: string[] = []
+    for (let i = 0; i < this.currentShardIndex; i++) {
+      shards.push(this.pattern.replace(/%(0\d+)d/, String(i).padStart(6, '0')))
+    }
+    return shards
+  }
 }
 
 export class FileDataset {
