@@ -31,7 +31,7 @@ class GeoModule(BaseLightningModule):
     super().__init__(config)
 
     self.vit = ViTModel.from_pretrained('google/vit-base-patch16-224', add_pooling_layer=False)
-    self.classifier = torch.nn.Linear(self.vit.config.hidden_size, 2)
+    self.classifier = torch.nn.Linear(self.vit.config.hidden_size, 2)  # TODO: complex head
     self.criterion = torch.nn.MSELoss()
 
     for name, param in self.vit.named_parameters():
@@ -53,8 +53,8 @@ class GeoModule(BaseLightningModule):
 
     images, targets, _ = batch
     preds = self.forward(images)
-    loss = self.criterion(preds, targets / 180)
-    score = self.geoguess_score(preds * 180, targets).mean()
+    loss = self.criterion(preds, targets)
+    score = self.geoguess_score(preds, targets).mean()
     self.log('train/loss', loss)
     self.log('train/score', score, prog_bar=True)
     return loss
@@ -62,8 +62,8 @@ class GeoModule(BaseLightningModule):
   def validation_step(self, batch: Batch, batch_idx: int):
     images, targets, _ = batch
     preds = self.forward(images)
-    loss = self.criterion(preds, targets / 180)
-    score = self.geoguess_score(preds * 180, targets).mean()
+    loss = self.criterion(preds, targets)
+    score = self.geoguess_score(preds, targets).mean()
     self.log('valid/loss', loss)
     self.log('valid/score', score)
     self.log('score', score, prog_bar=True)

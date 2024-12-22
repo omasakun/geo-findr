@@ -43,6 +43,8 @@ def equirectangular_to_planar(panorama, width: int, height: int, fov: float, hea
   lon = torch.clamp(lon.long(), 0, panorama.shape[2] - 1)
   output = panorama[:, lat, lon]
 
+  # output = F.grid_sample(panorama.unsqueeze(0), torch.stack((lon, lat), dim=-1).unsqueeze(0), mode=mode, padding_mode="border", align_corners=False).squeeze(0)
+
   return output
 
 def _main():

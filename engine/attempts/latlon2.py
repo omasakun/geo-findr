@@ -4,7 +4,8 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 # %%
 
-from typing import Optional
+from random import Random
+from typing import Literal, Optional
 
 import click
 import matplotlib.pyplot as plt
@@ -20,7 +21,6 @@ from transformers import ViTImageProcessor, ViTModel
 from engine.attempts.lib.dataset import GeoDatasets
 from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, setup_environment,
                                        unique_run_name, wandb_logger)
-from engine.lib.geo import (geoguesser_score, haversine_distance, latlon_to_xyz, xyz_to_latlon_torch)
 from engine.lib.projection import equirectangular_to_planar
 from engine.lib.utils import DATA, DotDict, num_workers_suggested
 from engine.train import TrainContext
@@ -32,7 +32,7 @@ class GeoModule(BaseLightningModule):
     super().__init__(config)
 
     self.vit = ViTModel.from_pretrained('google/vit-base-patch16-224', add_pooling_layer=False)
-    self.classifier = torch.nn.Linear(self.vit.config.hidden_size, 3)  # TODO: complex head
+    self.classifier = torch.nn.Linear(self.vit.config.hidden_size, 2)  # TODO: complex head
     self.criterion = torch.nn.MSELoss()
 
     for name, param in self.vit.named_parameters():
@@ -70,15 +70,6 @@ class GeoModule(BaseLightningModule):
     self.log('score', score, prog_bar=True)
     return loss
 
-  def geoguess_score(self, preds, targets):
-    with torch.no_grad():
-      preds = preds.to(torch.float64)
-      targets = targets.to(torch.float64)
-      pred_lat, pred_lon = xyz_to_latlon_torch(preds[:, 0], preds[:, 1], preds[:, 2])
-      target_lat, target_lon = xyz_to_latlon_torch(targets[:, 0], targets[:, 1], targets[:, 2])
-      score: Tensor = geoguesser_score(haversine_distance(pred_lat, pred_lon, target_lat, target_lon))  # type: ignore
-      return score
-
 class GeoDataModule(LightningDataModule):
   def __init__(self, config: DotDict, num_workers: int):
     super().__init__()
@@ -88,21 +79,28 @@ class GeoDataModule(LightningDataModule):
     self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
 
   def setup(self, stage=None):
-    def mapper(item: dict):
+    def mapper(item: dict, split: Literal["train", "valid"]):
       with torch.no_grad():
+        fov, heading, pitch, roll = 90, 0, 0, 0
+        if split == "train":
+          random = Random()
+          fov = random.uniform(60, 100)
+          heading = random.uniform(-180, 180)
+          pitch = random.uniform(-30, 30)
+          roll = random.uniform(-10, 10)
+
         image = item["panorama"]
         image = torch.as_tensor(np.array(image))
         image = rearrange(image, "h w c -> c h w")
-        image = equirectangular_to_planar(image, 224, 224, 90, 0, 0, 0)  # TODO: random crop, resize, etc.
+        image = equirectangular_to_planar(image, 224, 224, fov, heading, pitch, roll)
         image = self.transform(image, return_tensors='pt')['pixel_values'][0]
         meta = item["metadata"]
-        lat, lon = meta['lat'], meta['lon']
-        target = torch.as_tensor(latlon_to_xyz(lat, lon))
+        target = torch.as_tensor([meta['lat'], meta['lon']])
         country = meta.get("countryCode", "??")
         return image, target, country
 
-    self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True).map(mapper)
-    self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False).map(mapper)
+    self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True).map(lambda item: mapper(item, "train"))
+    self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False).map(lambda item: mapper(item, "valid"))
 
   def train_dataloader(self):
     return DataLoader(self.train_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
@@ -113,7 +111,8 @@ class GeoDataModule(LightningDataModule):
   def preview(self, batch):
     images, targets, countries = batch
     for image, target, country in zip(images, targets, countries):
-      plt.title(f"{country}")
+      lat, lon = target
+      plt.title(f"{country} ({lat:.6f}, {lon:.6f})")
       plt.imshow(rearrange(image / 2 + 0.5, "c h w -> h w c"))
       plt.show()
 
@@ -151,10 +150,10 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
 
   datamodule = GeoDataModule(config, num_workers)
 
-  # datamodule.setup()
-  # for batch in datamodule.train_dataloader():
-  #   datamodule.preview(batch)
-  #   break
+  datamodule.setup()
+  for batch in datamodule.train_dataloader():
+    datamodule.preview(batch)
+    break
 
   logger = wandb_logger(project, name)
 
