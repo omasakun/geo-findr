@@ -1,5 +1,7 @@
-attempt: latlon4
+attempt: aa_latlon
 dataset: geoguess-ai/panorama-div9
+
+panorama_crop: {}
 
 batch_size: 16
 

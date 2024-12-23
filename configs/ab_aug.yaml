@@ -1,5 +1,11 @@
-attempt: latlon2
+attempt: aa_latlon
 dataset: geoguess-ai/panorama-div9
+
+panorama_crop:
+  fov: [60, 100]
+  heading: [-180, 180]
+  pitch: [-30, 30]
+  roll: [-10, 10]
 
 batch_size: 16
 

@@ -7,20 +7,15 @@
 from typing import Optional
 
 import click
-import matplotlib.pyplot as plt
-import numpy as np
 import questionary
 import torch
-from einops import rearrange
-from lightning import LightningDataModule, Trainer
+from lightning import Trainer
 from torch import Tensor
-from torch.utils.data import DataLoader
-from transformers import ViTImageProcessor, ViTModel
+from transformers import ViTModel
 
-from engine.attempts.lib.dataset import GeoDatasets
+from engine.attempts.lib.dataset import GeoVitDataModule
 from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, setup_environment,
                                        unique_run_name, wandb_logger)
-from engine.lib.projection import equirectangular_to_planar
 from engine.lib.utils import DATA, DotDict, num_workers_suggested
 from engine.train import TrainContext
 
@@ -69,45 +64,6 @@ class GeoModule(BaseLightningModule):
     self.log('score', score, prog_bar=True)
     return loss
 
-class GeoDataModule(LightningDataModule):
-  def __init__(self, config: DotDict, num_workers: int, cache_size: int):
-    super().__init__()
-    self.config = config
-    self.num_workers = num_workers
-    self.cache_size = cache_size
-    self.datasets = GeoDatasets(config.dataset)
-    self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
-
-  def setup(self, stage=None):
-    def mapper(item: dict):
-      with torch.no_grad():
-        image = item["panorama"]
-        image = torch.as_tensor(np.array(image))
-        image = rearrange(image, "h w c -> c h w")
-        image = equirectangular_to_planar(image, 224, 224, 90, 0, 0, 0)  # TODO: random crop, resize, etc.
-        image = self.transform(image, return_tensors='pt')['pixel_values'][0]
-        meta = item["metadata"]
-        target = torch.as_tensor([meta['lat'], meta['lon']])
-        country = meta.get("countryCode", "??")
-        return image, target, country
-
-    self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True, cache_size=self.cache_size).map(mapper)
-    self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False, cache_size=self.cache_size).map(mapper)
-
-  def train_dataloader(self):
-    return DataLoader(self.train_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
-
-  def val_dataloader(self):
-    return DataLoader(self.valid_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
-
-  def preview(self, batch):
-    images, targets, countries = batch
-    for image, target, country in zip(images, targets, countries):
-      lat, lon = target
-      plt.title(f"{country} ({lat:.6f}, {lon:.6f})")
-      plt.imshow(rearrange(image / 2 + 0.5, "c h w -> h w c"))
-      plt.show()
-
 @click.command(context_settings=dict(show_default=True))
 @click.option("--project", default="geo-aa", help="Wandb project name.")
 @click.option("--name", default=None, help="Name of the model. Used for loading and saving checkpoints.")
@@ -141,7 +97,7 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
 
   if weights_from: model.load_weights_from_checkpoint(DATA / "models" / weights_from / "last.ckpt", strict=False)
 
-  datamodule = GeoDataModule(config, num_workers, cache_size)
+  datamodule = GeoVitDataModule(config, num_workers, cache_size)
 
   # datamodule.setup()
   # for batch in datamodule.train_dataloader():
