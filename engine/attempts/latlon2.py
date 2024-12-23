@@ -71,10 +71,11 @@ class GeoModule(BaseLightningModule):
     return loss
 
 class GeoDataModule(LightningDataModule):
-  def __init__(self, config: DotDict, num_workers: int):
+  def __init__(self, config: DotDict, num_workers: int, cache_size: int):
     super().__init__()
     self.config = config
     self.num_workers = num_workers
+    self.cache_size = cache_size
     self.datasets = GeoDatasets(config.dataset)
     self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
 
@@ -99,8 +100,8 @@ class GeoDataModule(LightningDataModule):
         country = meta.get("countryCode", "??")
         return image, target, country
 
-    self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True).map(lambda item: mapper(item, "train"))
-    self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False).map(lambda item: mapper(item, "valid"))
+    self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True, cache_size=self.cache_size).map(mapper)
+    self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False, cache_size=self.cache_size).map(mapper)
 
   def train_dataloader(self):
     return DataLoader(self.train_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
@@ -122,13 +123,14 @@ class GeoDataModule(LightningDataModule):
 @click.option("--resume-from", default=None, help="Name of the model to resume from.")
 @click.option("--weights-from", default=None, help="Name of the model to load weights from.")
 @click.option("--num-workers", default=max(1, num_workers_suggested() - 1), help="Number of workers for data loading.")
+@click.option("--cache-size", default=int(-1), help="Size of the webdataset cache. (0 = no cache, -1 = unlimited)")
 @click.option("--log-frequency", default=50, help="Frequency of logging steps.")
 @click.option("--val-frequency", default=1000, help="Frequency of validation steps.")
 @click.option("--profile", is_flag=True, help="Enable profiler.")
 @click.option("--skip-sanity-check", is_flag=True, help="Skip validation sanity check.")
 @click.option("--detect-anomaly", is_flag=True, help="Detect anomaly.")
-def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Optional[str], weights_from: Optional[str], num_workers: int, log_frequency: int,
-          val_frequency: int, profile: bool, skip_sanity_check: bool, detect_anomaly: bool):
+def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Optional[str], weights_from: Optional[str], num_workers: int, cache_size: int,
+          log_frequency: int, val_frequency: int, profile: bool, skip_sanity_check: bool, detect_anomaly: bool):
   name = name or unique_run_name(project, 3)
   config = ctx.config
 
@@ -148,12 +150,12 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
 
   if weights_from: model.load_weights_from_checkpoint(DATA / "models" / weights_from / "last.ckpt", strict=False)
 
-  datamodule = GeoDataModule(config, num_workers)
+  datamodule = GeoDataModule(config, num_workers, cache_size)
 
-  datamodule.setup()
-  for batch in datamodule.train_dataloader():
-    datamodule.preview(batch)
-    break
+  # datamodule.setup()
+  # for batch in datamodule.train_dataloader():
+  #   datamodule.preview(batch)
+  #   break
 
   logger = wandb_logger(project, name)
 

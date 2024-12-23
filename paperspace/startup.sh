@@ -37,3 +37,5 @@ persist ~/.vscode/cli/code_tunnel.json vscode/cli/code_tunnel.json
 persist ~/.vscode/cli/token.json vscode/cli/token.json
 
 mkdir -p /tmp/data/cache
+mkdir -p /notebooks/data
+ln -s /tmp/data/cache /notebooks/data/cache
