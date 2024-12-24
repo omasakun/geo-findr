@@ -18,7 +18,6 @@ from torch.utils.data import DataLoader
 from transformers import ViTImageProcessor
 from webdataset import WebDataset
 
-from engine.attempts.lib.dataset import GeoDatasets
 from engine.lib.geo import latlon_to_xyz
 from engine.lib.projection import equirectangular_to_planar
 from engine.lib.utils import DATA, DotDict
