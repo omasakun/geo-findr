@@ -54,7 +54,7 @@ class GeoModule(BaseLightningModule):
     return torch.optim.Adam(parameters, lr=self.config.learning_rate)
 
   def forward_vit(self, x: Tensor):
-    vit_outputs = self.vit(x)
+    vit_outputs = self.vit(x, interpolate_pos_encoding=True)
     vit_features = vit_outputs.last_hidden_state[:, 0, :]
     return vit_features
 

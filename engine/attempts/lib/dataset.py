@@ -61,7 +61,7 @@ class GeoVitDataModule(LightningDataModule):
     self.num_workers = num_workers
     self.cache_size = cache_size
     self.datasets = GeoDatasets(config.dataset)
-    self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+    self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224', do_resize=False)
 
   def setup(self, stage=None):
     def mapper(item: dict, split: Literal["train", "valid"]):
@@ -84,10 +84,12 @@ class GeoVitDataModule(LightningDataModule):
       if "pitch" in config: pitch = random.uniform(*config["pitch"])
       if "roll" in config: roll = random.uniform(*config["roll"])
 
+    width, height = self.config.get("image_size", (224, 224))
+
     image = item["panorama"]
     image = torch.as_tensor(np.array(image))
     image = rearrange(image, "h w c -> c h w")
-    image = equirectangular_to_planar(image, 224, 224, fov, heading, pitch, roll)
+    image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
     image = self.transform(image, return_tensors='pt')['pixel_values'][0]
     return image
 
