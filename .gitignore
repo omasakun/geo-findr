@@ -1,6 +1,7 @@
 # private / large files
 
 /data
+/paperspace/secrets
 
 .env
 

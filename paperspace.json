@@ -1,0 +1,4 @@
+{
+  "profile": "data/chromium",
+  "command": "npx --yes remote-tasks run --repeat"
+}

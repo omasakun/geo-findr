@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/remote-tasks/schema.json",
+  "worker": "https://remote-tasks.o137.workers.dev",
+  "preTask": ["git stash --include-untracked", "git checkout main", "git pull"],
+  "defaultTag": "geoguess-ai"
+}

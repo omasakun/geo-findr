@@ -9,7 +9,8 @@
     "ensure-license-notice": "^0.2.0",
     "husky": "^9.0.7",
     "lint-staged": "^15.2.0",
-    "prettier": "^3.2.4"
+    "prettier": "^3.2.4",
+    "remote-tasks": "^0.3.0"
   },
   "lint-staged": {
     "*": [
