@@ -1,0 +1,15 @@
+attempt: bc_cospos
+dataset: geoguess-ai/panorama-div9
+
+panorama_crop: {}
+image_size: [512, 512]
+
+batch_size: 16
+
+precision: bf16-mixed
+precision_matmul: medium
+
+steps: 100000
+learning_rate: 2.0e-4
+
+num_times: 4

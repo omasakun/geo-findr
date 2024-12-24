@@ -4,13 +4,14 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 # %%
 
+import math
 from typing import Optional
 
 import click
 import questionary
 import torch
 import torch.nn.functional as F
-from einops import repeat
+from einops import rearrange, repeat
 from lightning import Trainer
 from torch import Tensor
 from transformers import ViTModel
@@ -34,13 +35,24 @@ class GeoModule(BaseLightningModule):
     self.ddpm = Ddpm()
 
     hdim = self.vit.config.hidden_size
-    self.head = GeoDiffModel(3, 3, hdim, hdim, depth=6, max_timestep=self.ddpm.steps)
+    self.head = GeoDiffModel(768, 3, hdim, hdim, depth=6, max_timestep=self.ddpm.steps)
 
     for name, param in self.vit.named_parameters():
       if 'encoder.layer.11' not in name:
         param.requires_grad = False
     for param in self.head.parameters():
       param.requires_grad = True
+
+  def encode_coordinates(self, coords: Tensor, expand=128, max_freq=1000.0):
+    # coords: (n_batch, 3)
+    device, dtype = coords.device, coords.dtype
+    scale = torch.arange(expand, device=device, dtype=dtype)
+    scale = max_freq**(scale / (expand - 1))  # 1, ..., max_freq
+    scale = (math.pi / 2) * scale
+    coords = rearrange(coords, 'b c -> b c 1')
+    scale = rearrange(scale, 'c -> 1 1 c')
+    pe = torch.cat([torch.sin(coords * scale), torch.cos(coords * scale)], dim=-1)
+    return rearrange(pe, 'b c1 c2 -> b (c1 c2)')
 
   def configure_optimizers(self):
     parameters = list(self.head.parameters()) + list(self.vit.encoder.layer[11].parameters())
@@ -54,7 +66,8 @@ class GeoModule(BaseLightningModule):
   def forward_diffusion(self, vit_features: Tensor, noise_t: Tensor | int, xt: Tensor):
     if isinstance(noise_t, int): noise_t = torch.ones(xt.size(0), 1, device=xt.device) * noise_t
     noise_t = noise_t.to(self.dtype) / self.ddpm.steps
-    return self.head(xt, noise_t, vit_features)
+    xt_enc = self.encode_coordinates(xt)
+    return self.head(xt_enc, noise_t, vit_features)
 
   def training_step(self, batch: Batch, batch_idx: int):
     self.log_amp_scale('amp_scale', prog_bar=True)

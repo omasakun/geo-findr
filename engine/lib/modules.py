@@ -69,13 +69,13 @@ class GeoDiffBlock(nn.Module):
 
 # similar to https://arxiv.org/pdf/2212.09748
 class GeoDiffModel(nn.Module):
-  def __init__(self, dim: int, hdim: int, cdim: int, depth: int, max_timestep: float, expansion=4):
+  def __init__(self, idim: int, odim: int, hdim: int, cdim: int, depth: int, max_timestep: float, expansion=4):
     super().__init__()
     self.time = TimeEmbedder(hdim, max_timestep)
     self.cond = nn.Linear(cdim, hdim)
-    self.initial = nn.Linear(dim, hdim)
+    self.initial = nn.Linear(idim, hdim)
     self.blocks = nn.ModuleList([GeoDiffBlock(hdim, hdim * expansion) for _ in range(depth)])
-    self.final = nn.Linear(hdim, dim)
+    self.final = nn.Linear(hdim, odim)
 
   def forward(self, x: Tensor, t: Tensor, cond: Tensor):
     c = self.time(t) + self.cond(cond)
