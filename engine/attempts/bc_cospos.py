@@ -35,7 +35,7 @@ class GeoModule(BaseLightningModule):
     self.ddpm = Ddpm()
 
     hdim = self.vit.config.hidden_size
-    self.head = GeoDiffModel(768, 3, hdim, hdim, depth=6, max_timestep=self.ddpm.steps)
+    self.head = GeoDiffModel(768 + 3, 3, hdim, hdim, depth=6, max_timestep=self.ddpm.steps)
 
     for name, param in self.vit.named_parameters():
       if 'encoder.layer.11' not in name:
@@ -49,10 +49,10 @@ class GeoModule(BaseLightningModule):
     scale = torch.arange(expand, device=device, dtype=dtype)
     scale = max_freq**(scale / (expand - 1))  # 1, ..., max_freq
     scale = (math.pi / 2) * scale
-    coords = rearrange(coords, 'b c -> b c 1')
-    scale = rearrange(scale, 'c -> 1 1 c')
-    pe = torch.cat([torch.sin(coords * scale), torch.cos(coords * scale)], dim=-1)
-    return rearrange(pe, 'b c1 c2 -> b (c1 c2)')
+    enc = rearrange(coords, 'b c -> b c 1') * rearrange(scale, 'c -> 1 1 c')
+    enc = torch.cat([torch.sin(enc), torch.cos(enc)], dim=-1)
+    enc = rearrange(enc, 'b c1 c2 -> b (c1 c2)')
+    return torch.cat([coords, enc], dim=-1)
 
   def configure_optimizers(self):
     parameters = list(self.head.parameters()) + list(self.vit.encoder.layer[11].parameters())
