@@ -15,6 +15,7 @@ from einops import rearrange
 from huggingface_hub import get_token
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
+from torchvision.io import decode_image
 from transformers import ViTImageProcessor
 from webdataset import WebDataset
 
@@ -40,9 +41,6 @@ class GeoDatasets:
     # remove extension from key names
     def mapper(item: dict):
       item = {k.split('.')[0]: v for k, v in item.items()}
-      for k, v in item.items():
-        if isinstance(v, np.ndarray):
-          item[k] = torch.tensor(v)
       return item
 
     cache_dir = DATA / 'cache' / 'webdataset'
@@ -50,7 +48,7 @@ class GeoDatasets:
     else: cache_dir = None
 
     dataset = WebDataset(shard_urls, shardshuffle=shardshuffle, resampled=resampled, empty_check=False, cache_size=cache_size, cache_dir=cache_dir)
-    dataset = dataset.decode("pil")
+    dataset = dataset.decode()
     dataset = dataset.map(mapper)
     return dataset
 
@@ -87,8 +85,7 @@ class GeoVitDataModule(LightningDataModule):
     width, height = self.config.get("image_size", (224, 224))
 
     image = item["panorama"]
-    image = torch.as_tensor(np.array(image)).to(torch.float32)
-    image = rearrange(image, "h w c -> c h w")
+    image = decode_image(torch.frombuffer(image, dtype=torch.uint8), "RGB").to(torch.float32)
     image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
     image = self.transform(image, return_tensors='pt')['pixel_values'][0]
     return image
@@ -133,8 +130,8 @@ class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
     self.image_std = self.transform.image_std
 
   def get_image(self, item: dict, split: Literal["train", "valid"]):
-    image = torch.as_tensor(np.array(item["panorama"])).to(torch.float32) / 255
-    image = rearrange(image, "h w c -> c h w")
+    image = item["panorama"]
+    image = decode_image(torch.frombuffer(image, dtype=torch.uint8), "RGB").to(torch.float32) / 255
     if split == "train" and self.config.randomize_heading:
       random = Random()
       image = image.roll(random.randint(0, image.size(1)), 2)
@@ -170,7 +167,7 @@ def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   dataset = geo_datasets(split)
   for item in dataset:
     pano = item["panorama"]
-    pano = rearrange(np.array(pano), "h w c -> c h w")
+    pano = decode_image(torch.frombuffer(pano, dtype=torch.uint8), "RGB")
     meta = item["metadata"]
     country = meta.get("countryCode", "??")
     text = f"{country} {meta['lat']:.6f} {meta['lon']:.6f}"

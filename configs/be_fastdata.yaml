@@ -5,7 +5,7 @@ panorama_crop: {}
 randomize_heading: false
 image_size: [512, 512]
 
-batch_size: 16
+batch_size: 64
 
 precision: bf16-mixed
 precision_matmul: medium

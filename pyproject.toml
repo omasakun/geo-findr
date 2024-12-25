@@ -20,6 +20,7 @@ dependencies = [
   "umap-learn[plot]~=0.5",
   "wandb~=0.19",
   "webdataset~=0.2",
+  "torchvision~=0.20",
 ]
 
 [dependency-groups]
