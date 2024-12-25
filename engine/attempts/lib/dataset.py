@@ -4,18 +4,19 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 # %%
 
+from io import BytesIO
 from random import Random
 from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
+import PIL.Image
 import requests
 import torch
 from einops import rearrange
 from huggingface_hub import get_token
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from torchvision.io import ImageReadMode, decode_image
 from transformers import ViTImageProcessor
 from webdataset import WebDataset
 
@@ -90,8 +91,7 @@ class GeoVitDataModule(LightningDataModule):
 
     width, height = self.config.get("image_size", (224, 224))
 
-    image = item["panorama"]
-    image = decode_image(bytes_to_tensor(image), ImageReadMode.RGB).to(torch.float32) / 255
+    image = load_image(item["panorama"])
     image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
     image[0] = (image[0] - self.image_mean[0]) / self.image_std[0]
     image[1] = (image[1] - self.image_mean[1]) / self.image_std[1]
@@ -130,8 +130,7 @@ class GeoVitXyzDataModule(GeoVitDataModule):
 
 class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
   def get_image(self, item: dict, split: Literal["train", "valid"]):
-    image = item["panorama"]
-    image = decode_image(bytes_to_tensor(image), ImageReadMode.RGB).to(torch.float32) / 255
+    image = load_image(item["panorama"])
     if split == "train" and self.config.randomize_heading:
       random = Random()
       image = image.roll(random.randint(0, image.size(1)), 2)
@@ -165,12 +164,20 @@ def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   geo_datasets = GeoDatasets(repo)
   dataset = geo_datasets(split)
   for item in dataset:
-    pano = item["panorama"]
-    pano = decode_image(bytes_to_tensor(pano), ImageReadMode.RGB)
+    pano = load_image(item["panorama"])
     meta = item["metadata"]
     country = meta.get("countryCode", "??")
     text = f"{country} {meta['lat']:.6f} {meta['lon']:.6f}"
     yield pano, text
+
+def load_image(data: bytes):
+  # TODO: decode_image seems to be better, but it leaks memory
+  # return decode_image(bytes_to_tensor(image), ImageReadMode.RGB).to(torch.float32) / 255
+
+  image = PIL.Image.open(BytesIO(data))
+  image = rearrange(np.array(image), "h w c -> c h w")
+  image = torch.from_numpy(image).to(torch.float32) / 255
+  return image
 
 def bytes_to_tensor(data: bytes):
   x = np.frombuffer(data, dtype=np.uint8)

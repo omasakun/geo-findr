@@ -58,7 +58,6 @@ def _main():
   from engine.attempts.lib.dataset import panorama_examples
 
   image, _ = next(iter(panorama_examples()))
-  image = torch.as_tensor(image).float() / 255
 
   plt.imshow(rearrange(image, "c h w -> h w c"))
   plt.show()
