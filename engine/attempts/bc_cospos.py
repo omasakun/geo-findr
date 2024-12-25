@@ -17,8 +17,8 @@ from torch import Tensor
 from transformers import ViTModel
 
 from engine.attempts.lib.dataset import GeoVitXyzDataModule
-from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, setup_environment,
-                                       unique_run_name, wandb_logger)
+from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, set_learning_rate,
+                                       setup_environment, unique_run_name, wandb_logger)
 from engine.lib.ddpm import Ddpm
 from engine.lib.geo import (geoguesser_score, haversine_distance, xyz_to_latlon_torch)
 from engine.lib.modules import GeoDiffModel
@@ -73,6 +73,9 @@ class GeoModule(BaseLightningModule):
     self.log_amp_scale('amp_scale', prog_bar=True)
     self.ddpm.to(self.dtype, self.device)
 
+    optimizer: Optimizer = self.optimizers()  # type: ignore
+    set_learning_rate(optimizer, self.config.learning_rate)
+
     images, targets, _ = batch
     device = images.device
 
@@ -90,6 +93,7 @@ class GeoModule(BaseLightningModule):
 
     loss = F.mse_loss(noise_hat, noise)
     self.log('train/loss', loss)
+    self.log_lr('lr', optimizer)
     return loss
 
   def validation_step(self, batch: Batch, batch_idx: int):
