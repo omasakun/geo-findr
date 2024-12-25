@@ -1,7 +1,8 @@
-attempt: bc_cospos
-dataset: geoguess-ai/panorama-div9
+attempt: bd_panocuda
+dataset: geoguess-ai/panorama-div9-2048
 
 panorama_crop: {}
+randomize_heading: false
 image_size: [512, 512]
 
 batch_size: 16

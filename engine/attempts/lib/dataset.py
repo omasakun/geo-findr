@@ -15,7 +15,7 @@ from einops import rearrange
 from huggingface_hub import get_token
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from torchvision.io import decode_image
+from torchvision.io import ImageReadMode, decode_image
 from transformers import ViTImageProcessor
 from webdataset import WebDataset
 
@@ -59,7 +59,13 @@ class GeoVitDataModule(LightningDataModule):
     self.num_workers = num_workers
     self.cache_size = cache_size
     self.datasets = GeoDatasets(config.dataset)
-    self.transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224', do_resize=False)
+
+    transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224', do_resize=False)
+    assert transform.do_normalize
+    assert isinstance(transform.image_mean, list)
+    assert isinstance(transform.image_std, list)
+    self.image_mean = transform.image_mean
+    self.image_std = transform.image_std
 
   def setup(self, stage=None):
     def mapper(item: dict, split: Literal["train", "valid"]):
@@ -85,9 +91,11 @@ class GeoVitDataModule(LightningDataModule):
     width, height = self.config.get("image_size", (224, 224))
 
     image = item["panorama"]
-    image = decode_image(torch.frombuffer(image, dtype=torch.uint8), "RGB").to(torch.float32)
+    image = decode_image(bytes_to_tensor(image), ImageReadMode.RGB).to(torch.float32) / 255
     image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
-    image = self.transform(image, return_tensors='pt')['pixel_values'][0]
+    image[0] = (image[0] - self.image_mean[0]) / self.image_std[0]
+    image[1] = (image[1] - self.image_mean[1]) / self.image_std[1]
+    image[2] = (image[2] - self.image_mean[2]) / self.image_std[2]
     return image
 
   def get_target(self, item: dict):
@@ -121,17 +129,9 @@ class GeoVitXyzDataModule(GeoVitDataModule):
       plt.show()
 
 class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
-  def __init__(self, config: DotDict, num_workers: int, cache_size: int):
-    super().__init__(config, num_workers, cache_size)
-    assert self.transform.do_normalize
-    assert isinstance(self.transform.image_mean, list)
-    assert isinstance(self.transform.image_std, list)
-    self.image_mean = self.transform.image_mean
-    self.image_std = self.transform.image_std
-
   def get_image(self, item: dict, split: Literal["train", "valid"]):
     image = item["panorama"]
-    image = decode_image(torch.frombuffer(image, dtype=torch.uint8), "RGB").to(torch.float32) / 255
+    image = decode_image(bytes_to_tensor(image), ImageReadMode.RGB).to(torch.float32) / 255
     if split == "train" and self.config.randomize_heading:
       random = Random()
       image = image.roll(random.randint(0, image.size(1)), 2)
@@ -157,7 +157,6 @@ class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
       images[:, 0] = (images[:, 0] - self.image_mean[0]) / self.image_std[0]
       images[:, 1] = (images[:, 1] - self.image_mean[1]) / self.image_std[1]
       images[:, 2] = (images[:, 2] - self.image_mean[2]) / self.image_std[2]
-      # images = self.transform(images, return_tensors='pt')['pixel_values']
       batch = images, targets, countries
 
       return super().on_after_batch_transfer(batch, dataloader_idx)
@@ -167,11 +166,16 @@ def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   dataset = geo_datasets(split)
   for item in dataset:
     pano = item["panorama"]
-    pano = decode_image(torch.frombuffer(pano, dtype=torch.uint8), "RGB")
+    pano = decode_image(bytes_to_tensor(pano), ImageReadMode.RGB)
     meta = item["metadata"]
     country = meta.get("countryCode", "??")
     text = f"{country} {meta['lat']:.6f} {meta['lon']:.6f}"
     yield pano, text
+
+def bytes_to_tensor(data: bytes):
+  x = np.frombuffer(data, dtype=np.uint8)
+  if not x.flags.writeable: x = x.copy()
+  return torch.from_numpy(x)
 
 def _main():
   import matplotlib.pyplot as plt

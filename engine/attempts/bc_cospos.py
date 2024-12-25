@@ -192,6 +192,7 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
       profiler=lightning_profiler() if profile else None,
       detect_anomaly=detect_anomaly,
       num_sanity_val_steps=0 if skip_sanity_check else 2,
+      accumulate_grad_batches=config.accumulate_grad,
   )
 
   if resume_from: logger.log_hyperparams({"resume_from": resume_from})
