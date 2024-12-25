@@ -87,7 +87,7 @@ class GeoVitDataModule(LightningDataModule):
     width, height = self.config.get("image_size", (224, 224))
 
     image = item["panorama"]
-    image = torch.as_tensor(np.array(image))
+    image = torch.as_tensor(np.array(image)).to(torch.float32)
     image = rearrange(image, "h w c -> c h w")
     image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
     image = self.transform(image, return_tensors='pt')['pixel_values'][0]
@@ -122,6 +122,48 @@ class GeoVitXyzDataModule(GeoVitDataModule):
       plt.title(f"{country}")
       plt.imshow(rearrange(image / 2 + 0.5, "c h w -> h w c"))
       plt.show()
+
+class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
+  def __init__(self, config: DotDict, num_workers: int, cache_size: int):
+    super().__init__(config, num_workers, cache_size)
+    assert self.transform.do_normalize
+    assert isinstance(self.transform.image_mean, list)
+    assert isinstance(self.transform.image_std, list)
+    self.image_mean = self.transform.image_mean
+    self.image_std = self.transform.image_std
+
+  def get_image(self, item: dict, split: Literal["train", "valid"]):
+    image = torch.as_tensor(np.array(item["panorama"])).to(torch.float32) / 255
+    image = rearrange(image, "h w c -> c h w")
+    if split == "train" and self.config.randomize_heading:
+      random = Random()
+      image = image.roll(random.randint(0, image.size(1)), 2)
+    return image, split
+
+  def on_after_batch_transfer(self, batch, dataloader_idx):
+    with torch.no_grad():
+      width, height = self.config.get("image_size", (224, 224))
+
+      (images, split), targets, countries = batch
+
+      # TODO: randomize for each image
+      fov, heading, pitch, roll = 90, 0, 0, 0
+      if split[0] == "train":
+        random = Random()
+        config: dict = self.config.panorama_crop
+        if "fov" in config: fov = random.uniform(*config["fov"])
+        if "heading" in config: heading = random.uniform(*config["heading"])
+        if "pitch" in config: pitch = random.uniform(*config["pitch"])
+        if "roll" in config: roll = random.uniform(*config["roll"])
+
+      images = equirectangular_to_planar(images, width, height, fov, heading, pitch, roll)
+      images[:, 0] = (images[:, 0] - self.image_mean[0]) / self.image_std[0]
+      images[:, 1] = (images[:, 1] - self.image_mean[1]) / self.image_std[1]
+      images[:, 2] = (images[:, 2] - self.image_mean[2]) / self.image_std[2]
+      # images = self.transform(images, return_tensors='pt')['pixel_values']
+      batch = images, targets, countries
+
+      return super().on_after_batch_transfer(batch, dataloader_idx)
 
 def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   geo_datasets = GeoDatasets(repo)

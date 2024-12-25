@@ -32,7 +32,9 @@
     ".venv": true,
     "**/node_modules": true,
     "target": true,
-    "**/__pycache__": true
+    "**/__pycache__": true,
+    "data/datasets/*/*": true,
+    "data/panos/*/*": true
   },
   "files.watcherExclude": {
     "**/.git/objects/**": true,

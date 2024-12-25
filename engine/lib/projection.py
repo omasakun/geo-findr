@@ -7,10 +7,11 @@
 import math
 
 import torch
-from einops import rearrange
+import torch.nn.functional as F
+from einops import rearrange, repeat
 
-def equirectangular_to_planar(panorama, width: int, height: int, fov: float, heading: float, pitch: float, roll: float):
-  """ panorama: (channels, height, width) """
+def equirectangular_to_planar(panorama, width: int, height: int, fov: float, heading: float, pitch: float, roll: float, mode="bilinear"):
+  """ panorama: (channels, height, width) or (batch, channels, height, width) tensor """
 
   device = panorama.device
 
@@ -36,14 +37,18 @@ def equirectangular_to_planar(panorama, width: int, height: int, fov: float, hea
   lat = torch.asin(coords[..., 1] / torch.norm(coords, dim=-1))
   lon = torch.atan2(coords[..., 0], coords[..., 2])
 
-  lat = (lat + math.pi / 2) / math.pi * panorama.shape[1]
-  lon = (lon + math.pi) / (2 * math.pi) * panorama.shape[2]
+  lat = (lat + math.pi / 2) / math.pi * 2 - 1
+  lon = (lon + math.pi) / (2 * math.pi) * 2 - 1
 
-  lat = torch.clamp(lat.long(), 0, panorama.shape[1] - 1)
-  lon = torch.clamp(lon.long(), 0, panorama.shape[2] - 1)
-  output = panorama[:, lat, lon]
+  # lat = torch.clamp(lat.long(), 0, panorama.shape[-2] - 1)
+  # lon = torch.clamp(lon.long(), 0, panorama.shape[-1] - 1)
+  # output = panorama[..., lat, lon]
 
-  # output = F.grid_sample(panorama.unsqueeze(0), torch.stack((lon, lat), dim=-1).unsqueeze(0), mode=mode, padding_mode="border", align_corners=False).squeeze(0)
+  pano_ndim = panorama.ndim
+  if pano_ndim == 3: panorama = panorama.unsqueeze(0)
+  grid = repeat(torch.stack((lon, lat), dim=-1), "c h w -> b c h w", b=panorama.shape[0])
+  output = F.grid_sample(panorama, grid, mode=mode, padding_mode="reflection", align_corners=False)
+  if pano_ndim == 3: output = output.squeeze(0)
 
   return output
 
@@ -53,6 +58,7 @@ def _main():
   from engine.attempts.lib.dataset import panorama_examples
 
   image, _ = next(iter(panorama_examples()))
+  image = torch.as_tensor(image).float() / 255
 
   plt.imshow(rearrange(image, "c h w -> h w c"))
   plt.show()

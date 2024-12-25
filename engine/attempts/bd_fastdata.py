@@ -16,7 +16,7 @@ from lightning import Trainer
 from torch import Tensor
 from transformers import ViTModel
 
-from engine.attempts.lib.dataset import GeoVitXyzDataModule
+from engine.attempts.lib.dataset import GeoVitXyzCudaDataModule
 from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, setup_environment,
                                        unique_run_name, wandb_logger)
 from engine.lib.ddpm import Ddpm
@@ -161,10 +161,11 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
 
   if weights_from: model.load_weights_from_checkpoint(DATA / "models" / weights_from / "last.ckpt", strict=False)
 
-  datamodule = GeoVitXyzDataModule(config, num_workers, cache_size)
+  datamodule = GeoVitXyzCudaDataModule(config, num_workers, cache_size)
 
   # datamodule.setup()
   # for batch in datamodule.train_dataloader():
+  #   batch = datamodule.on_after_batch_transfer(batch, 0)
   #   datamodule.preview(batch)
   #   break
 
