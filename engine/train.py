@@ -23,6 +23,7 @@ class TrainContext:
 @click.argument('train_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def main(ctx: click.Context, config_name: Optional[str], train_args: list[str]):
+  if config_name == "": config_name = None
   if config_name is None:
     config_name = questionary.select("Select a config to train with", choices=sorted([p.stem for p in (ROOT / 'configs').glob('*.yaml')])).ask()
 

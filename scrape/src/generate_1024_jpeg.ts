@@ -29,11 +29,16 @@ async function generateDataset(metadataFile: string, datasetName: string) {
     metadata.panoids,
     async (panoid) => {
       const data = await src.getEntry(panoid, ['metadata.json', 'panorama.webp'])
-      data['panorama.webp'] = await sharp(data['panorama.webp'])
-        .resize(2048, 1024, { fit: 'fill' })
-        .webp()
-        .toBuffer()
-      return [panoid, data] as const
+      return [
+        panoid,
+        {
+          'metadata.json': data['metadata.json'],
+          'panorama.jpeg': await sharp(data['panorama.webp'])
+            .resize(1024, 512, { fit: 'fill' })
+            .jpeg({ quality: 90 })
+            .toBuffer(),
+        },
+      ] as const
     },
     { concurrency: 32 },
   )) {

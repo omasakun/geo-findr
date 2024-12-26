@@ -19,7 +19,7 @@ function getAllFiles(dir: string, bar: SingleBar) {
     const filePath = join(dir, file.name)
     if (file.isDirectory()) {
       results.push(...getAllFiles(filePath, bar))
-    } else if (filePath.endsWith('.webp')) {
+    } else if (!filePath.endsWith('.json')) {
       results.push(filePath)
     }
   })
