@@ -16,7 +16,7 @@ precision: bf16-mixed
 precision_matmul: medium
 
 steps: 100000
-learning_rate: 8.0e-4
+learning_rate: 2.0e-4
 accumulate_grad: 1
 
 num_times: 4
