@@ -19,6 +19,7 @@ from typing import Any, Iterable, TypeVar, Union
 
 import numpy as np
 import torch
+import wandb
 import yaml
 from numpy.typing import NDArray
 from torch import Tensor
@@ -122,6 +123,13 @@ def num_workers_suggested() -> int:
     except Exception:
       pass
   return os.cpu_count() or 1
+
+def wandb_histogram(x: list | NPArray | Tensor, num_bins: int = 100):
+  if isinstance(x, Tensor): x = x.float().cpu().numpy()
+  if isinstance(x, list): x = np.array(x)
+
+  x = x[np.isfinite(x)]
+  return wandb.Histogram(x, num_bins=num_bins)  # type: ignore
 
 def save_json(obj: dict | DotDict, path: str | Path, exist_ok=False):
   if isinstance(obj, DotDict): obj = obj.as_dict()

@@ -123,10 +123,11 @@ class GeoModule(BaseLightningModule):
       noise_hat = self.forward_diffusion(vit_features, t, xt)
       xt, _ = self.ddpm.remove_noise(xt, noise_hat, t)
 
-    score = self.geoguess_score(xt, targets).mean()
+    scores = self.geoguess_score(xt, targets)
+    score = scores.mean()
     self.log('valid/score', score)
     self.log('score', score, prog_bar=True)
-    return loss
+    self.validation_scores.append(scores.detach())
 
   def geoguess_score(self, preds, targets):
     with torch.no_grad():

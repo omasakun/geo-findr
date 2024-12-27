@@ -18,13 +18,14 @@ from torch import Tensor
 from torch.optim import Optimizer
 
 from engine.lib.geo import geoguesser_score, haversine_distance
-from engine.lib.utils import CODE, DATA, DotDict, random_name, save_json
+from engine.lib.utils import (CODE, DATA, DotDict, random_name, save_json, wandb_histogram)
 
 # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningModule.html
 class BaseLightningModule(LightningModule):
   def __init__(self, config: DotDict):
     super().__init__()
     self.config = config
+    self.validation_scores: list[Tensor] = []
 
   def current_step(self):
     return self.trainer.fit_loop.epoch_loop._batches_that_stepped
@@ -46,6 +47,18 @@ class BaseLightningModule(LightningModule):
   def log_amp_scale(self, name: str, **kwargs):
     amp_scaler = getattr(self.trainer.precision_plugin, "scaler", None)
     if amp_scaler: self.log(name, amp_scaler.get_scale(), **kwargs)
+
+  @override
+  def on_validation_epoch_start(self):
+    self.validation_scores = []
+    return super().on_validation_epoch_start()
+
+  @override
+  def on_validation_epoch_end(self):
+    if self.validation_scores:
+      scores = torch.cat(self.validation_scores)
+      self.logger.log_metrics({'valid/score_hist': wandb_histogram(scores)})  # type: ignore
+    return super().on_validation_epoch_end()
 
   @override
   def on_save_checkpoint(self, checkpoint: dict[str, Any]):
