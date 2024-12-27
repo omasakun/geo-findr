@@ -124,8 +124,13 @@ class GeoVitXyzDataModule(GeoVitDataModule):
   def preview(self, batch):
     images, targets, countries = batch
     for image, target, country in zip(images, targets, countries):
-      plt.title(f"{country}")
-      plt.imshow(rearrange(image / 2 + 0.5, "c h w -> h w c"))
+      projections = image.size(0) // 3
+      fig, axes = plt.subplots(1, projections, figsize=(15, 5))
+      for i in range(projections):
+        image_i = image[i * 3:i * 3 + 3]
+        axes[i].imshow(rearrange(image_i / 2 + 0.5, "c h w -> h w c"))
+        axes[i].set_title(f"{country}")
+        axes[i].axis('off')
       plt.show()
 
 class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
@@ -136,26 +141,47 @@ class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
       image = image.roll(random.randint(0, image.size(1)), 2)
     return image, split
 
+  def projection(self, images, split, heading_offset=0):
+    width, height = self.config.get("image_size", (224, 224))
+    fov, heading, pitch, roll = 90, 0, 0, 0
+    if split == "train":
+      random = Random()
+      config: dict = self.config.panorama_crop
+      if "fov" in config: fov = random.uniform(*config["fov"])
+      if "heading" in config: heading = random.uniform(*config["heading"])
+      if "pitch" in config: pitch = random.uniform(*config["pitch"])
+      if "roll" in config: roll = random.uniform(*config["roll"])
+
+    heading += heading_offset
+
+    images = equirectangular_to_planar(images, width, height, fov, heading, pitch, roll)
+    images[:, 0] = (images[:, 0] - self.image_mean[0]) / self.image_std[0]
+    images[:, 1] = (images[:, 1] - self.image_mean[1]) / self.image_std[1]
+    images[:, 2] = (images[:, 2] - self.image_mean[2]) / self.image_std[2]
+    return images
+
   def on_after_batch_transfer(self, batch, dataloader_idx):
     with torch.no_grad():
-      width, height = self.config.get("image_size", (224, 224))
+      four_side = self.config.four_side
 
       (images, split), targets, countries = batch
 
-      # TODO: randomize for each image
-      fov, heading, pitch, roll = 90, 0, 0, 0
-      if split[0] == "train":
-        random = Random()
-        config: dict = self.config.panorama_crop
-        if "fov" in config: fov = random.uniform(*config["fov"])
-        if "heading" in config: heading = random.uniform(*config["heading"])
-        if "pitch" in config: pitch = random.uniform(*config["pitch"])
-        if "roll" in config: roll = random.uniform(*config["roll"])
+      split = split[0]
+      assert split == "train" or split == "valid"
 
-      images = equirectangular_to_planar(images, width, height, fov, heading, pitch, roll)
-      images[:, 0] = (images[:, 0] - self.image_mean[0]) / self.image_std[0]
-      images[:, 1] = (images[:, 1] - self.image_mean[1]) / self.image_std[1]
-      images[:, 2] = (images[:, 2] - self.image_mean[2]) / self.image_std[2]
+      if four_side:
+        images = torch.cat(
+            [
+                self.projection(images, split, heading_offset=0),
+                self.projection(images, split, heading_offset=90),
+                self.projection(images, split, heading_offset=180),
+                self.projection(images, split, heading_offset=270)
+            ],
+            dim=1,
+        )
+      else:
+        images = self.projection(images, split)
+
       batch = images, targets, countries
 
       return super().on_after_batch_transfer(batch, dataloader_idx)

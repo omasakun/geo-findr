@@ -60,8 +60,12 @@ class GeoModule(BaseLightningModule):
     return torch.optim.Adam(parameters, lr=self.config.learning_rate)
 
   def forward_vit(self, x: Tensor):
+    projections = x.shape[1] // 3
+    x = rearrange(x, 'b (p c) h w -> (b p) c h w', p=projections)
     vit_outputs = self.vit(x, interpolate_pos_encoding=True)
     vit_features = vit_outputs.last_hidden_state[:, 0, :]
+    vit_features = rearrange(vit_features, '(b p) c -> b p c', p=projections)
+    vit_features = vit_features.mean(dim=1)
     return vit_features
 
   def forward_diffusion(self, vit_features: Tensor, noise_t: Tensor | int, xt: Tensor):
@@ -172,7 +176,6 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
   # for batch in datamodule.train_dataloader():
   #   batch = datamodule.on_after_batch_transfer(batch, 0)
   #   datamodule.preview(batch)
-  #   break
 
   logger = wandb_logger(project, name)
 
