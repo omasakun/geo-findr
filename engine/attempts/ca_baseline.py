@@ -31,10 +31,11 @@ class GeoModule(BaseLightningModule):
     super().__init__(config)
 
     self.vit = ViTModel.from_pretrained('google/vit-base-patch16-224', add_pooling_layer=False)
-    self.diffusion = Diffusion(UniformSchedule(), 1000)
+    self.diffusion = Diffusion(UniformSchedule(), self.config.diffusion_steps)
 
     hdim = self.vit.config.hidden_size
-    self.head = GeoDiffModel(768, 3, hdim, hdim, depth=6, min_timestep=1 / self.diffusion.steps)
+    assert self.diffusion.steps <= 1000
+    self.head = GeoDiffModel(768, 3, hdim, hdim, depth=6, min_timestep=1 / 1000)
 
     for name, param in self.vit.named_parameters():
       if 'encoder.layer.11' not in name:

@@ -20,6 +20,7 @@ steps: 100000
 learning_rate: 2.0e-4
 accumulate_grad: 1
 
+diffusion_steps: 100
 init_noise_scale: 1.0
 
 num_times: 4
