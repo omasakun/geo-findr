@@ -79,67 +79,22 @@ class GeoVitDataModule(LightningDataModule):
     self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True, cache_size=self.cache_size).map(lambda x: mapper(x, "train"))
     self.valid_dataset = self.datasets("valid", resampled=False, shardshuffle=False, cache_size=self.cache_size).map(lambda x: mapper(x, "valid"))
 
-  def get_image(self, item: dict, split: Literal["train", "valid"]):
-    fov, heading, pitch, roll = 90, 0, 0, 0
-    if split == "train":
-      random = Random()
-      config: dict = self.config.panorama_crop
-      if "fov" in config: fov = random.uniform(*config["fov"])
-      if "heading" in config: heading = random.uniform(*config["heading"])
-      if "pitch" in config: pitch = random.uniform(*config["pitch"])
-      if "roll" in config: roll = random.uniform(*config["roll"])
-
-    width, height = self.config.get("image_size", (224, 224))
-
-    image = load_image(item["panorama"])
-    image = equirectangular_to_planar(image, width, height, fov, heading, pitch, roll)
-    image[0] = (image[0] - self.image_mean[0]) / self.image_std[0]
-    image[1] = (image[1] - self.image_mean[1]) / self.image_std[1]
-    image[2] = (image[2] - self.image_mean[2]) / self.image_std[2]
-    return image
-
-  def get_target(self, item: dict):
-    meta = item["metadata"]
-    return torch.as_tensor([meta['lat'], meta['lon']])
-
   def train_dataloader(self):
     return DataLoader(self.train_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
 
   def val_dataloader(self):
     return DataLoader(self.valid_dataset, batch_size=self.config.batch_size, num_workers=self.num_workers)
 
-  def preview(self, batch):
-    images, targets, countries = batch
-    for image, target, country in zip(images, targets, countries):
-      lat, lon = target
-      plt.title(f"{country} ({lat:.6f}, {lon:.6f})")
-      plt.imshow(rearrange(image / 2 + 0.5, "c h w -> h w c"))
-      plt.show()
-
-class GeoVitXyzDataModule(GeoVitDataModule):
-  def get_target(self, item: dict):
-    meta = item["metadata"]
-    return torch.as_tensor(latlon_to_xyz(meta['lat'], meta['lon']))
-
-  def preview(self, batch):
-    images, targets, countries = batch
-    for image, target, country in zip(images, targets, countries):
-      projections = image.size(0) // 3
-      fig, axes = plt.subplots(1, projections, figsize=(15, 5))
-      for i in range(projections):
-        image_i = image[i * 3:i * 3 + 3]
-        axes[i].imshow(rearrange(image_i / 2 + 0.5, "c h w -> h w c"))
-        axes[i].set_title(f"{country}")
-        axes[i].axis('off')
-      plt.show()
-
-class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
   def get_image(self, item: dict, split: Literal["train", "valid"]):
     image = load_image(item["panorama"])
     if split == "train" and self.config.randomize_heading:
       random = Random()
       image = image.roll(random.randint(0, image.size(1)), 2)
     return image, split
+
+  def get_target(self, item: dict):
+    meta = item["metadata"]
+    return torch.as_tensor(latlon_to_xyz(meta['lat'], meta['lon']))
 
   def projection(self, images, split, heading_offset=0):
     width, height = self.config.get("image_size", (224, 224))
@@ -185,6 +140,18 @@ class GeoVitXyzCudaDataModule(GeoVitXyzDataModule):
       batch = images, targets, countries
 
       return super().on_after_batch_transfer(batch, dataloader_idx)
+
+  def preview(self, batch):
+    images, targets, countries = batch
+    for image, target, country in zip(images, targets, countries):
+      projections = image.size(0) // 3
+      fig, axes = plt.subplots(1, projections, figsize=(15, 5))
+      for i in range(projections):
+        image_i = image[i * 3:i * 3 + 3]
+        axes[i].imshow(rearrange(image_i / 2 + 0.5, "c h w -> h w c"))  # type: ignore
+        axes[i].set_title(f"{country}")  # type: ignore
+        axes[i].axis('off')  # type: ignore
+      plt.show()
 
 def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   geo_datasets = GeoDatasets(repo)

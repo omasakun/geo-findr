@@ -14,9 +14,10 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from lightning import Trainer
 from torch import Tensor
+from torch.optim.optimizer import Optimizer
 from transformers import ViTModel
 
-from engine.attempts.lib.dataset import GeoVitXyzDataModule
+from engine.attempts.lib.dataset import GeoVitDataModule
 from engine.attempts.lib.utils import (BaseLightningModule, LightningBar, LightningConfigSave, LightningModelCheckpoint, lightning_profiler, set_learning_rate,
                                        setup_environment, unique_run_name, wandb_logger)
 from engine.lib.ddpm import Ddpm
@@ -59,8 +60,12 @@ class GeoModule(BaseLightningModule):
     return torch.optim.Adam(parameters, lr=self.config.learning_rate)
 
   def forward_vit(self, x: Tensor):
+    projections = x.shape[1] // 3
+    x = rearrange(x, 'b (p c) h w -> (b p) c h w', p=projections)
     vit_outputs = self.vit(x, interpolate_pos_encoding=True)
     vit_features = vit_outputs.last_hidden_state[:, 0, :]
+    vit_features = rearrange(vit_features, '(b p) c -> b p c', p=projections)
+    vit_features = vit_features.mean(dim=1)
     return vit_features
 
   def forward_diffusion(self, vit_features: Tensor, noise_t: Tensor | int, xt: Tensor):
@@ -118,10 +123,11 @@ class GeoModule(BaseLightningModule):
       noise_hat = self.forward_diffusion(vit_features, t, xt)
       xt, _ = self.ddpm.remove_noise(xt, noise_hat, t)
 
-    score = self.geoguess_score(xt, targets).mean()
+    scores = self.geoguess_score(xt, targets)
+    score = scores.mean()
     self.log('valid/score', score)
     self.log('score', score, prog_bar=True)
-    return loss
+    self.validation_scores.append(scores.detach())
 
   def geoguess_score(self, preds, targets):
     with torch.no_grad():
@@ -165,12 +171,12 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
 
   if weights_from: model.load_weights_from_checkpoint(DATA / "models" / weights_from / "last.ckpt", strict=False)
 
-  datamodule = GeoVitXyzDataModule(config, num_workers, cache_size)
+  datamodule = GeoVitDataModule(config, num_workers, cache_size)
 
   # datamodule.setup()
   # for batch in datamodule.train_dataloader():
+  #   batch = datamodule.on_after_batch_transfer(batch, 0)
   #   datamodule.preview(batch)
-  #   break
 
   logger = wandb_logger(project, name)
 

@@ -82,13 +82,6 @@ class BaseLightningModule(LightningModule):
     data = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     return DotDict(data["config"])
 
-  def geoguess_score(self, preds, targets):
-    with torch.no_grad():
-      preds = preds.to(torch.float64)
-      targets = targets.to(torch.float64)
-      score: Tensor = geoguesser_score(haversine_distance(preds[:, 0], preds[:, 1], targets[:, 0], targets[:, 1]))  # type: ignore
-      return score
-
 class LightningBar(TQDMProgressBar):
   def __init__(self, name: str, **kwargs):
     super().__init__(**kwargs)
