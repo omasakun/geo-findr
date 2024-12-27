@@ -101,6 +101,24 @@ class GeoModule(BaseLightningModule):
     self.log('score', score, prog_bar=True)
     self.validation_scores.append(scores.detach())
 
+    hat = self.diffusion.reverse_random(
+        lambda x, var: self.forward_diffusion(vit_features, var, x),
+        lambda: torch.randn((1, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
+    )
+    scores = self.geoguess_score(hat, targets)
+    score = scores.mean()
+    self.log('valid/score_random', score)
+    self.validation_scores_random.append(scores.detach())
+
+    hat = self.diffusion.reverse_random(
+        lambda x, var: self.forward_diffusion(repeat(vit_features, "b c -> (n b) c", n=10), var, x),
+        lambda: torch.randn((10, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
+    )
+    scores = self.geoguess_score(hat, targets)
+    score = scores.mean()
+    self.log('valid/score_random10', score)
+    self.validation_scores_random10.append(scores.detach())
+
   def geoguess_score(self, preds, targets):
     with torch.no_grad():
       preds = preds.to(torch.float64)

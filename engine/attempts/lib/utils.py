@@ -25,6 +25,8 @@ class BaseLightningModule(LightningModule):
     super().__init__()
     self.config = config
     self.validation_scores: list[Tensor] = []
+    self.validation_scores_random: list[Tensor] = []
+    self.validation_scores_random10: list[Tensor] = []
 
   def current_step(self):
     return self.trainer.fit_loop.epoch_loop._batches_that_stepped
@@ -50,6 +52,8 @@ class BaseLightningModule(LightningModule):
   @override
   def on_validation_epoch_start(self):
     self.validation_scores = []
+    self.validation_scores_random = []
+    self.validation_scores_random10 = []
     return super().on_validation_epoch_start()
 
   @override
@@ -57,6 +61,12 @@ class BaseLightningModule(LightningModule):
     if self.validation_scores:
       scores = torch.cat(self.validation_scores)
       self.logger.log_metrics({'valid/score_hist': wandb_histogram(scores, num_bins=100, range=(0, 5000))})  # type: ignore
+    if self.validation_scores_random:
+      scores = torch.cat(self.validation_scores_random)
+      self.logger.log_metrics({'valid/score_random_hist': wandb_histogram(scores, num_bins=100, range=(0, 5000))})  # type: ignore
+    if self.validation_scores_random10:
+      scores = torch.cat(self.validation_scores_random10)
+      self.logger.log_metrics({'valid/score_random10_hist': wandb_histogram(scores, num_bins=100, range=(0, 5000))})  # type: ignore
     return super().on_validation_epoch_end()
 
   @override
