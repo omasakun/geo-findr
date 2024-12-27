@@ -57,7 +57,7 @@ class BaseLightningModule(LightningModule):
   def on_validation_epoch_end(self):
     if self.validation_scores:
       scores = torch.cat(self.validation_scores)
-      self.logger.log_metrics({'valid/score_hist': wandb_histogram(scores)})  # type: ignore
+      self.logger.log_metrics({'valid/score_hist': wandb_histogram(scores, num_bins=100, range=(0, 5000))})  # type: ignore
     return super().on_validation_epoch_end()
 
   @override
