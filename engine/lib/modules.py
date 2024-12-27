@@ -23,10 +23,10 @@ def embed_sincos(x: Tensor, expand: int, min_freq: float, max_freq: float):
   return enc
 
 def embed_coordinates(coords: Tensor, expand: int, max_freq: float):
-  print(coords.min(), coords.max())
   # return embed_sincos(coords, expand, 0.5, max_freq)
   # min_freq=0.5 で多分十分だけど、ノイズ付加で外に広がるかもしれないので余裕をもたせる
-  return embed_sincos(coords, expand, 0.125, max_freq)
+  # print(coords.min(), coords.max())
+  return embed_sincos(coords.clamp(-4, 4), expand, 0.125, max_freq)
 
 def embed_timestep(t: Tensor, dim: int, min_timestep: float):
   return embed_sincos(t, dim, 1, 1 / min_timestep)
