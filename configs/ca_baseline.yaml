@@ -1,4 +1,4 @@
-attempt: aa_baseline
+attempt: ca_baseline
 dataset: geoguess-ai/panorama-div9-1024-jpeg
 
 image_size: [224, 224]

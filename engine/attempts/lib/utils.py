@@ -17,7 +17,6 @@ from lightning.pytorch.profilers import PyTorchProfiler
 from torch import Tensor
 from torch.optim import Optimizer
 
-from engine.lib.geo import geoguesser_score, haversine_distance
 from engine.lib.utils import (CODE, DATA, DotDict, random_name, save_json, wandb_histogram)
 
 # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.core.LightningModule.html
