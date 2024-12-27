@@ -16,7 +16,9 @@ def embed_sincos(x: Tensor, expand: int, min_freq: float, max_freq: float):
   assert x.ndim == 2
   assert expand % 2 == 0
   device, dtype = x.device, x.dtype
-  freq = math.pi * torch.logspace(min_freq, max_freq, expand // 2, device=device, dtype=dtype)
+  freq = torch.arange(0, expand // 2, device=device, dtype=dtype) / (expand // 2 - 1)
+  freq = freq * (math.log(max_freq) - math.log(min_freq)) + math.log(min_freq)  # min_freq ~ max_freq
+  freq = math.pi * torch.exp(freq)
   enc = rearrange(x, 'b c -> b c 1') * rearrange(freq, 'c -> 1 1 c')
   enc = torch.cat([torch.sin(enc), torch.cos(enc)], dim=-1)
   enc = rearrange(enc, 'b c1 c2 -> b (c1 c2)')

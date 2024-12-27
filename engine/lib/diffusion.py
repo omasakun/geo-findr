@@ -26,7 +26,7 @@ class Diffusion:
     self.steps = steps
 
   def random_t(self, x: Tensor) -> Tensor:
-    t = torch.randint(0, self.steps, (x.size(0), 1), device=x.device)
+    t = torch.randint(1, self.steps, (x.size(0), 1), device=x.device)
     return t.to(x.dtype) / self.steps
 
   def compute_loss(self, forward: Forward, x0: Tensor, noise: Tensor, t: Tensor):
@@ -37,13 +37,13 @@ class Diffusion:
 
   def reverse(self, forward: Forward, x1: Tensor):
     x_with_noise = x1
-    for i in reversed(range(self.steps)):
+    for i in reversed(range(1, self.steps)):
       t = torch.ones((x_with_noise.size(0), 1), device=x_with_noise.device, dtype=x_with_noise.dtype) * i / self.steps
       var = self.schedule(t)
       noise_hat = forward(x_with_noise, var)
       x0_hat = (x_with_noise - noise_hat * var.sqrt()) / (1 - var).sqrt()
 
-      if i == 0: return x0_hat
+      if i == 1: return x0_hat
 
       var_next = self.schedule(t - 1 / self.steps)
       x_with_noise = x0_hat + (x_with_noise - x0_hat) * (var_next / var).sqrt()
