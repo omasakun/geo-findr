@@ -61,6 +61,7 @@ class GeoModule(BaseLightningModule):
 
   def training_step(self, batch: Batch, batch_idx: int):
     self.log_amp_scale('amp_scale', prog_bar=True)
+    step = self.current_step()
 
     optimizer: Optimizer = self.optimizers()  # type: ignore
     set_learning_rate(optimizer, self.config.learning_rate)
@@ -77,6 +78,8 @@ class GeoModule(BaseLightningModule):
     noise_t = self.diffusion.random_t(targets)
     loss = self.diffusion.compute_loss(lambda x, var: self.forward_diffusion(vit_features, var, x), targets, noise, noise_t)
     self.log('train/loss', loss)
+
+    set_learning_rate(optimizer, self.config.learning_rate * min(1.0, step / self.config.warmup_steps))
     self.log_lr('lr', optimizer)
     return loss
 
