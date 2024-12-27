@@ -74,7 +74,7 @@ class GeoModule(BaseLightningModule):
     targets = repeat(targets, 'b ... -> (n b) ...', n=num_times)
     vit_features = repeat(vit_features, 'b ... -> (n b) ...', n=num_times)
 
-    noise = torch.randn_like(targets)
+    noise = torch.randn_like(targets) * self.config.init_noise_scale
     noise_t = self.diffusion.random_t(targets)
     loss = self.diffusion.compute_loss(lambda x, var: self.forward_diffusion(vit_features, var, x), targets, noise, noise_t)
     self.log('train/loss', loss)
@@ -88,7 +88,7 @@ class GeoModule(BaseLightningModule):
 
     vit_features = self.forward_vit(images)
 
-    noise = torch.randn_like(targets)
+    noise = torch.randn_like(targets) * self.config.init_noise_scale
     noise_t = self.diffusion.random_t(targets)
     loss = self.diffusion.compute_loss(lambda x, var: self.forward_diffusion(vit_features, var, x), targets, noise, noise_t)
     self.log('valid/loss', loss)
