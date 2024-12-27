@@ -33,6 +33,9 @@ def embed_coordinates(coords: Tensor, expand: int, max_freq: float):
 def embed_timestep(t: Tensor, dim: int, min_timestep: float):
   return embed_sincos(t, dim, 1, 1 / min_timestep)
 
+def mix_embeddings(x: Tensor, y: Tensor, ratio: float):
+  return (x * ratio + y * (1 - ratio)) / math.sqrt(ratio**2 + (1 - ratio)**2)
+
 class GeoDiffBlock(nn.Module):
   def __init__(self, dim: int, hdim: int):
     super().__init__()
@@ -43,7 +46,7 @@ class GeoDiffBlock(nn.Module):
     )
     self.cond = nn.Sequential(
         nn.SiLU(),
-        nn.Linear(dim, dim * 3),
+        nn.Linear(dim, dim * 2),
     )
     self.norm = nn.LayerNorm(dim, elementwise_affine=False)
 
@@ -51,9 +54,9 @@ class GeoDiffBlock(nn.Module):
     nn.init.zeros_(self.model[-1].bias)
 
   def forward(self, x: Tensor, cond: Tensor):
-    gamma, mu, sigma = self.cond(cond).chunk(3, dim=-1)
+    gamma, mu = self.cond(cond).chunk(2, dim=-1)
     residual = (1 + gamma) * self.norm(x) + mu
-    x = x + self.model(residual) * sigma
+    x = mix_embeddings(x, residual, 0.5)  # TODO: optimize ratio
     return x
 
 # similar to https://arxiv.org/pdf/2212.09748
@@ -77,7 +80,9 @@ class GeoDiffModel(nn.Module):
     self.final = nn.Linear(hdim, odim)
 
   def forward(self, x: Tensor, t: Tensor, cond: Tensor):
-    c = self.time(embed_timestep(t, self.hdim, self.min_timestep)) + self.cond(cond)
+    time_embed = self.time(embed_timestep(t, self.hdim, self.min_timestep))
+    cond_embed = self.cond(cond)
+    c = mix_embeddings(time_embed, cond_embed, 0.5)
     x = self.initial(x)
     for block in self.blocks:
       x = block(x, c)
