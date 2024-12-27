@@ -47,7 +47,7 @@ class Diffusion:
       if i == 1: return x0_hat
 
       var_next = self.schedule(t - 1 / self.steps)
-      x_with_noise = x0_hat + (x_with_noise - x0_hat) * (var_next / var).sqrt()
+      x_with_noise = x0_hat * (1 - var_next).sqrt() + noise_hat * var_next.sqrt()
     raise RuntimeError("unreachable")
 
   def reverse_random(self, forward: Forward, noise: Callable[[], Tensor]):
@@ -68,5 +68,5 @@ class Diffusion:
       var_next = self.schedule(t - 1 / self.steps)
       var_next = rearrange(var_next, '(n b) c -> n b c', n=n_noise)
       scaled_noise = noise() * var_next.sqrt()
-      x_with_noise = x0_hat + scaled_noise
+      x_with_noise = x0_hat * (1 - var_next).sqrt() + scaled_noise
     raise RuntimeError("unreachable")
