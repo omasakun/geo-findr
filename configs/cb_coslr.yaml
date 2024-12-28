@@ -17,8 +17,8 @@ precision_matmul: medium
 
 warmup_steps: 1000
 steps: 100000
-learning_rate: 2.0e-4
-learning_rate_decay: none
+learning_rate: 4.0e-4
+learning_rate_decay: cosine
 accumulate_grad: 1
 
 diffusion_steps: 100

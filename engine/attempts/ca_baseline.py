@@ -4,6 +4,7 @@
 # If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 # %%
 
+import math
 from typing import Optional
 
 import click
@@ -80,7 +81,14 @@ class GeoModule(BaseLightningModule):
     loss = self.diffusion.compute_loss(lambda x, var: self.forward_diffusion(vit_features, var, x), targets, noise, noise_t)
     self.log('train/loss', loss)
 
-    set_learning_rate(optimizer, self.config.learning_rate * min(1.0, step / self.config.warmup_steps))
+    lr_decay = self.config.learning_rate_decay
+    lr = self.config.learning_rate
+    lr *= min(1.0, step / self.config.warmup_steps)
+    if lr_decay == "none": pass
+    elif lr_decay == "cosine": lr *= 0.5 * (1 + math.cos(math.pi * step / self.config.steps))
+    else: raise ValueError(f"Unknown lr_decay: {lr_decay}")
+
+    set_learning_rate(optimizer, lr)
     self.log_lr('lr', optimizer)
     return loss
 
