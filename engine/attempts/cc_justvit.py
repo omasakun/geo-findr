@@ -28,8 +28,9 @@ from engine.train import TrainContext
 Batch = tuple[Tensor, Tensor, str]
 
 class GeoModule(BaseLightningModule):
-  def __init__(self, config: DotDict):
+  def __init__(self, config: DotDict, score_frequency: int):
     super().__init__(config)
+    self.score_frequency = score_frequency
 
     self.vit = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k')
     self.diffusion = Diffusion(UniformSchedule(), self.config.diffusion_steps)
@@ -112,6 +113,7 @@ class GeoModule(BaseLightningModule):
     return loss
 
   def validation_step(self, batch: Batch, batch_idx: int):
+    step = self.current_step()
     images, targets, _ = batch
 
     noise = torch.randn_like(targets) * self.config.init_noise_scale
@@ -119,30 +121,31 @@ class GeoModule(BaseLightningModule):
     loss = self.diffusion.compute_loss(lambda x, var: self.forward(images, x, var), targets, noise, noise_t)
     self.log('valid/loss', loss)
 
-    hat = self.diffusion.reverse(lambda x, var: self.forward(images, x, var), noise)
-    scores = self.geoguess_score(hat, targets)
-    score = scores.mean()
-    self.log('valid/score', score)
-    self.log('score', score, prog_bar=True)
-    self.validation_scores.append(scores.detach())
+    if step % self.score_frequency == 0:
+      # hat = self.diffusion.reverse(lambda x, var: self.forward(images, x, var), noise)
+      # scores = self.geoguess_score(hat, targets)
+      # score = scores.mean()
+      # self.log('valid/score', score)
+      # self.log('score', score, prog_bar=True)
+      # self.validation_scores.append(scores.detach())
 
-    hat = self.diffusion.reverse_random(
-        lambda x, var: self.forward(images, x, var),
-        lambda: torch.randn((1, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
-    )
-    scores = self.geoguess_score(hat, targets)
-    score = scores.mean()
-    self.log('valid/score_random', score)
-    self.validation_scores_random.append(scores.detach())
+      hat = self.diffusion.reverse_random(
+          lambda x, var: self.forward(images, x, var),
+          lambda: torch.randn((1, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
+      )
+      scores = self.geoguess_score(hat, targets)
+      score = scores.mean()
+      self.log('valid/score_random', score)
+      self.validation_scores_random.append(scores.detach())
 
-    hat = self.diffusion.reverse_random(
-        lambda x, var: self.forward(repeat(images, "b h w c -> (n b) h w c", n=10), x, var),
-        lambda: torch.randn((10, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
-    )
-    scores = self.geoguess_score(hat, targets)
-    score = scores.mean()
-    self.log('valid/score_random10', score)
-    self.validation_scores_random10.append(scores.detach())
+      # hat = self.diffusion.reverse_random(
+      #     lambda x, var: self.forward(repeat(images, "b h w c -> (n b) h w c", n=10), x, var),
+      #     lambda: torch.randn((10, *targets.shape), device=targets.device, dtype=targets.dtype) * self.config.init_noise_scale,
+      # )
+      # scores = self.geoguess_score(hat, targets)
+      # score = scores.mean()
+      # self.log('valid/score_random10', score)
+      # self.validation_scores_random10.append(scores.detach())
 
   def geoguess_score(self, preds, targets):
     with torch.no_grad():
@@ -161,18 +164,20 @@ class GeoModule(BaseLightningModule):
 @click.option("--num-workers", default=max(1, num_workers_suggested() - 1), help="Number of workers for data loading.")
 @click.option("--cache-size", default=int(-1), help="Size of the webdataset cache. (0 = no cache, -1 = unlimited)")
 @click.option("--log-frequency", default=50, help="Frequency of logging steps.")
-@click.option("--val-frequency", default=2000, help="Frequency of validation steps.")
+@click.option("--val-frequency", default=1000, help="Frequency of validation steps.")
+@click.option("--score-frequency", default=10000, help="Frequency of scoring steps.")
 @click.option("--profile", is_flag=True, help="Enable profiler.")
 @click.option("--skip-sanity-check", is_flag=True, help="Skip validation sanity check.")
 @click.option("--detect-anomaly", is_flag=True, help="Detect anomaly.")
 def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Optional[str], weights_from: Optional[str], num_workers: int, cache_size: int,
-          log_frequency: int, val_frequency: int, profile: bool, skip_sanity_check: bool, detect_anomaly: bool):
+          log_frequency: int, val_frequency: int, score_frequency: int, profile: bool, skip_sanity_check: bool, detect_anomaly: bool):
   name = name or unique_run_name(project, 3)
   config = ctx.config
 
   print()
   print(f"Training '{name}' with {num_workers} workers and validation every {val_frequency} steps.")
   assert not (resume_from and weights_from), "Cannot resume from a checkpoint and load weights at the same time."
+  assert score_frequency % val_frequency == 0, "score_frequency must be a multiple of val_frequency."
 
   model_dir = DATA / "models" / name
   ckpt_file = model_dir / "last.ckpt" if model_dir.exists() else None
@@ -182,7 +187,7 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
     if not questionary.confirm("Checkpoint config does not match current config. Continue?", default=False).ask(): return
     print("Continuing with current config.")
 
-  model = GeoModule(config)
+  model = GeoModule(config, score_frequency)
 
   if weights_from: model.load_weights_from_checkpoint(DATA / "models" / weights_from / "last.ckpt", strict=False)
 
