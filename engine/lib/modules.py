@@ -59,6 +59,25 @@ class GeoDiffBlock(nn.Module):
     x = mix_embeddings(x, residual, 0.5)  # TODO: optimize ratio
     return x
 
+class TimeEmbedder(nn.Module):
+  def __init__(self, dim: int, min_timestep: float):
+    super().__init__()
+    self.dim = dim
+    self.min_timestep = min_timestep
+
+  def forward(self, t: Tensor):
+    return embed_timestep(t, self.dim, self.min_timestep)
+
+class CoordsEmbedder(nn.Module):
+  def __init__(self, dim: int, max_freq: float):
+    super().__init__()
+    assert dim % 6 == 0
+    self.dim = dim
+    self.max_freq = max_freq
+
+  def forward(self, x: Tensor):
+    return embed_coordinates(x, self.dim // 3, self.max_freq)
+
 # similar to https://arxiv.org/pdf/2212.09748
 class GeoDiffModel(nn.Module):
   def __init__(self, idim: int, odim: int, hdim: int, cdim: int, *, depth: int, min_timestep: float, expansion=4):
