@@ -41,12 +41,12 @@ class GeoModule(BaseLightningModule):
     self.embed_coords = CoordsEmbedder(hdim, 1000.0)  # 1000.0 may not be the best value
     self.post_time = nn.Sequential(
         nn.Linear(hdim, hdim),
-        nn.SiLU(),
+        nn.SiLU(inplace=True),
         nn.Linear(hdim, hdim),
     )
     self.post_coords = nn.Sequential(
         nn.Linear(hdim, hdim),
-        nn.SiLU(),
+        nn.SiLU(inplace=True),
         nn.Linear(hdim, hdim),
     )
     self.final = nn.Linear(hdim, 3)

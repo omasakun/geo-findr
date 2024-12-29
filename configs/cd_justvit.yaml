@@ -10,7 +10,7 @@ panorama_crop:
   roll: [-5, 5]
 four_side: true
 
-batch_size: 64
+batch_size: 32
 
 precision: bf16-mixed
 precision_matmul: medium
@@ -24,4 +24,4 @@ accumulate_grad: 1
 diffusion_steps: 100
 init_noise_scale: 1.0
 
-num_times: 2
+num_times: 1
