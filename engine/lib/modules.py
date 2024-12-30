@@ -13,7 +13,7 @@ from torch import Tensor
 
 def embed_sincos(x: Tensor, expand: int, min_freq: float, max_freq: float):
   # x: (batch, channel), -1 ~ 1
-  assert x.ndim == 2
+  assert x.ndim == 2, f"x must be 2D tensor, but got {x.ndim}"
   assert expand % 2 == 0
   device, dtype = x.device, x.dtype
   freq = torch.arange(0, expand // 2, device=device, dtype=dtype) / (expand // 2 - 1)

@@ -77,10 +77,10 @@ class BaseLightningModule(LightningModule):
   # def on_load_checkpoint(self, checkpoint: dict[str, Any]):
   #   self.config = DotDict(checkpoint["config"])
 
-  # @classmethod
-  # def load_from_checkpoint(cls, checkpoint_path: str | Path, **kwargs):  # type: ignore
-  #   config = cls.load_config_from_checkpoint(checkpoint_path)
-  #   return super().load_from_checkpoint(checkpoint_path, config=config, **kwargs)
+  @classmethod
+  def load_from_checkpoint(cls, checkpoint_path: str | Path, **kwargs):  # type: ignore
+    config = cls.load_config_from_checkpoint(checkpoint_path)
+    return super().load_from_checkpoint(checkpoint_path, config=config, **kwargs)
 
   def load_weights_from_checkpoint(self, checkpoint_path: str | Path, strict=True):
     weights = torch.load(checkpoint_path)['state_dict']

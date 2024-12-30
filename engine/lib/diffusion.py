@@ -52,7 +52,7 @@ class Diffusion:
 
   def reverse_random(self, forward: Forward, noise: Callable[[], Tensor]):
     x1 = noise()
-    assert x1.ndim == 3, "noise() must return a tensor of shape (noise, batch, channel)"
+    assert x1.ndim == 3, f"noise() must return a tensor of shape (noise, batch, channel), but got {x1.shape}"
     n_noise = x1.size(0)
     x_with_noise = x1
     for i in reversed(range(1, self.steps)):

@@ -144,14 +144,18 @@ class GeoVitDataModule(LightningDataModule):
   def preview(self, batch):
     images, targets, countries = batch
     for image, target, country in zip(images, targets, countries):
-      projections = image.size(0) // 3
-      fig, axes = plt.subplots(1, projections, figsize=(15, 5))
-      for i in range(projections):
-        image_i = image[i * 3:i * 3 + 3]
-        axes[i].imshow(rearrange(image_i / 2 + 0.5, "c h w -> h w c"))  # type: ignore
-        axes[i].set_title(f"{country}")  # type: ignore
-        axes[i].axis('off')  # type: ignore
-      plt.show()
+      self.preview_sample((image, target, country))
+
+  def preview_sample(self, sample):
+    image, target, country = sample
+    projections = image.size(0) // 3
+    fig, axes = plt.subplots(1, projections, figsize=(15, 5))
+    for i in range(projections):
+      image_i = image[i * 3:i * 3 + 3]
+      axes[i].imshow(rearrange(image_i / 2 + 0.5, "c h w -> h w c"))  # type: ignore
+      axes[i].set_title(f"{country}")  # type: ignore
+      axes[i].axis('off')  # type: ignore
+    plt.show()
 
 def panorama_examples(repo="geoguess-ai/panorama-div9", split="train"):
   geo_datasets = GeoDatasets(repo)
