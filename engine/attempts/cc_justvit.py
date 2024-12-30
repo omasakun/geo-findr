@@ -57,7 +57,7 @@ class GeoModule(BaseLightningModule):
     vit = self.vit
     projections = images.shape[1] // 3
 
-    if noise_var.size(0) == 1: noise_var = noise_var.expand(images.size(0), -1, -1)
+    if noise_var.size(0) == 1: noise_var = noise_var.expand(images.size(0), -1)
 
     time = self.post_time(self.embed_time(noise_var))
     coords = self.post_coords(self.embed_coords(coords))
@@ -121,12 +121,11 @@ class GeoModule(BaseLightningModule):
     loss = self.diffusion.compute_loss(lambda x, var: self.forward(images, x, var), targets, noise, noise_t)
     self.log('valid/loss', loss)
 
-    if step % self.score_frequency == 0:
+    if (step + 1) % self.score_frequency == 0:
       # hat = self.diffusion.reverse(lambda x, var: self.forward(images, x, var), noise)
       # scores = self.geoguess_score(hat, targets)
       # score = scores.mean()
       # self.log('valid/score', score)
-      # self.log('score', score, prog_bar=True)
       # self.validation_scores.append(scores.detach())
 
       hat = self.diffusion.reverse_random(
@@ -136,6 +135,7 @@ class GeoModule(BaseLightningModule):
       scores = self.geoguess_score(hat, targets)
       score = scores.mean()
       self.log('valid/score_random', score)
+      self.log('score', score, prog_bar=True)
       self.validation_scores_random.append(scores.detach())
 
       # hat = self.diffusion.reverse_random(
