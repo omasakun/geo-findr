@@ -8,19 +8,21 @@ requires-python = "==3.12.7"
 dependencies = [
   "click~=8.1",
   "einops~=0.8",
+  "folium~=0.19",
   "gradio~=5.9",
   "huggingface-hub[hf_transfer]~=0.27",
   "lightning~=2.5",
   "numpy~=2.0",
+  "plotly~=5.24",
   "questionary~=2.0",
   "requests~=2.32",
   "torch~=2.5",
+  "torchvision~=0.20",
   "tqdm~=4.67",
   "transformers~=4.47",
   "umap-learn[plot]~=0.5",
   "wandb~=0.19",
   "webdataset~=0.2",
-  "torchvision~=0.20",
 ]
 
 [dependency-groups]

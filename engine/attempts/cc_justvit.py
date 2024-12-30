@@ -120,12 +120,14 @@ class GeoModule(BaseLightningModule):
     noise_t = self.diffusion.random_t(targets)
     loss = self.diffusion.compute_loss(lambda x, var: self.forward(images, x, var), targets, noise, noise_t)
     self.log('valid/loss', loss)
+    self.log('loss', loss)
 
     if (step + 1) % self.score_frequency == 0:
       # hat = self.diffusion.reverse(lambda x, var: self.forward(images, x, var), noise)
       # scores = self.geoguess_score(hat, targets)
       # score = scores.mean()
       # self.log('valid/score', score)
+      # self.log('score', score, prog_bar=True)
       # self.validation_scores.append(scores.detach())
 
       hat = self.diffusion.reverse_random(
@@ -135,7 +137,6 @@ class GeoModule(BaseLightningModule):
       scores = self.geoguess_score(hat, targets)
       score = scores.mean()
       self.log('valid/score_random', score)
-      self.log('score', score, prog_bar=True)
       self.validation_scores_random.append(scores.detach())
 
       # hat = self.diffusion.reverse_random(
@@ -211,8 +212,8 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
           LightningConfigSave(model_dir),
           LightningModelCheckpoint(
               dirpath=model_dir,
-              filename="{step:08d}-{score:.3f}",
-              monitor="score",
+              filename="{step:08d}-{loss:.3f}",
+              monitor="loss",
               mode="max",
               save_top_k=3,
               save_last=True,
