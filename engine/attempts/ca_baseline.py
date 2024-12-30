@@ -189,7 +189,7 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
           LightningConfigSave(model_dir),
           LightningModelCheckpoint(
               dirpath=model_dir,
-              filename="{step:08d}-{multimel:.3f}",
+              filename="{step:08d}-{score:.3f}",
               monitor="score",
               mode="max",
               save_top_k=3,

@@ -37,7 +37,7 @@ class GeoModule(BaseLightningModule):
     hdim = self.vit.config.hidden_size
     assert self.diffusion.steps <= 1000
     self.head = GeoDiffModel(768, 3, hdim, hdim, depth=6, min_timestep=1 / 1000)
-    
+
   def configure_optimizers(self):
     return torch.optim.Adam(self.parameters(), lr=self.config.learning_rate)
 
@@ -182,7 +182,7 @@ def train(ctx: TrainContext, project: str, name: Optional[str], resume_from: Opt
           LightningConfigSave(model_dir),
           LightningModelCheckpoint(
               dirpath=model_dir,
-              filename="{step:08d}-{multimel:.3f}",
+              filename="{step:08d}-{score:.3f}",
               monitor="score",
               mode="max",
               save_top_k=3,
