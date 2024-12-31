@@ -1,0 +1,27 @@
+attempt: cd_sigmoid
+dataset: geoguess-ai/panorama-div9-1024-jpeg
+
+image_size: [224, 224]
+randomize_heading: true
+panorama_crop:
+  fov: [80, 100]
+  heading: [-10, 10]
+  pitch: [-40, 40]
+  roll: [-5, 5]
+four_side: true
+
+batch_size: 32
+
+precision: bf16-mixed
+precision_matmul: medium
+
+warmup_steps: 2000
+steps: 200000
+learning_rate: 1.0e-4
+learning_rate_decay: cosine
+accumulate_grad: 1
+
+diffusion_steps: 100
+init_noise_scale: 1.0
+
+num_times: 4

@@ -54,12 +54,13 @@ class GeoDatasets:
     return dataset
 
 class GeoVitDataModule(LightningDataModule):
-  def __init__(self, config: DotDict, num_workers: int, cache_size: int):
+  def __init__(self, config: DotDict, num_workers: int, cache_size: int, with_key=False):
     super().__init__()
     self.config = config
     self.num_workers = num_workers
     self.cache_size = cache_size
     self.datasets = GeoDatasets(config.dataset)
+    self.with_key = with_key
 
     transform = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224', do_resize=False)
     assert transform.do_normalize
@@ -74,6 +75,7 @@ class GeoVitDataModule(LightningDataModule):
         image = self.get_image(item, split)
         target = self.get_target(item)
         country = item["metadata"].get("countryCode", "??")
+        if self.with_key: return image, target, country, item["__key__"]
         return image, target, country
 
     self.train_dataset = self.datasets("train", resampled=True, shardshuffle=True, cache_size=self.cache_size).map(lambda x: mapper(x, "train"))
@@ -119,7 +121,7 @@ class GeoVitDataModule(LightningDataModule):
     with torch.no_grad():
       four_side = self.config.four_side
 
-      (images, split), targets, countries = batch
+      (images, split), targets, *rest = batch
 
       split = split[0]
       assert split == "train" or split == "valid"
@@ -137,7 +139,7 @@ class GeoVitDataModule(LightningDataModule):
       else:
         images = self.projection(images, split)
 
-      batch = images, targets, countries
+      batch = images, targets, *rest
 
       return super().on_after_batch_transfer(batch, dataloader_idx)
 

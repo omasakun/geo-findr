@@ -7,6 +7,7 @@
 import ast
 import json
 import logging
+import math
 import os
 import shutil
 import warnings
@@ -106,6 +107,9 @@ class DotDict(dict):
       else:
         items.append((prefix + k, v))
     return dict(items)
+
+def sigmoid(x: float):
+  return 1 / (1 + math.exp(-x))
 
 def mean(items: Iterable, start=0):
   items = list(items)
