@@ -73,7 +73,7 @@ class GeoModule(BaseLightningModule):
     patches = vit.encoder(patches)
     patches = vit.layernorm(patches.last_hidden_state)  # (batch, patch, channels)
 
-    output = patches[:, -1, :]  # extract the coords token
+    output = patches[:, 0, :]
 
     output = rearrange(output, '(b p) c -> b p c', p=projections)
     output = output.mean(dim=1)
