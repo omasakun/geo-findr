@@ -18,24 +18,30 @@ from matplotlib import pyplot as plt
 from torch import Tensor
 from tqdm import tqdm
 
-from engine.attempts.cb_finetune import GeoModule
+from engine.attempts.cd_sigmoid import GeoModule
 from engine.attempts.lib.dataset import GeoVitDataModule
 from engine.attempts.lib.utils import setup_environment
-from engine.lib.diffusion import SigmoidSchedule
+from engine.lib.diffusion import SigmoidSchedule, UniformSchedule
 from engine.lib.geo import xyz_to_latlon_torch
 from engine.lib.utils import DATA
 
-Mode = Literal["deterministic", "random"]
+Mode = Literal["deterministic", "deterministic-x0", "random"]
 Batch = tuple[Tensor, Tensor, str, str]  # image, target, country, key
 
 mode: Mode = "deterministic"
-ckpt_path = DATA / "models" / "siraka" / "last.ckpt"
+# mode: Mode = "deterministic-x0"
+# mode: Mode = "random"
+num_trajectories = 10
+ckpt_path = DATA / "models" / "riyiha/step=00008000-score=3323.631.ckpt"
 
 model: GeoModule = GeoModule.load_from_checkpoint(ckpt_path).eval().to("cuda")
 config = model.config
 
-print("Diffusion schedule has been overridden.")
-model.diffusion.schedule = SigmoidSchedule()
+# print("Diffusion schedule has been overridden.")
+# model.diffusion.steps = 1000
+# model.diffusion.schedule = SigmoidSchedule(tau=0.5)
+# model.diffusion.schedule = UniformSchedule()
+# model.config.init_noise_scale = 0.1
 
 setup_environment(config)
 datamodule = GeoVitDataModule(config, num_workers=1, cache_size=0, with_key=True)
@@ -47,7 +53,7 @@ for batch in islice(datamodule.val_dataloader(), 1):
   pano_map.update({key: (image[None, ...], target[None, ...], country, key) for image, target, country, key in zip(*batch)})
 
 @lru_cache(maxsize=None)
-def reverse_diffusion(pano_id):
+def reverse_diffusion(pano_id, seed=None):
   n_random = 1
   image, target, country, key = pano_map[pano_id]
   image, target = image.to("cuda"), target.to("cuda")
@@ -62,6 +68,12 @@ def reverse_diffusion(pano_id):
       )
     elif mode == "deterministic":
       hat, trace, _, logtext = model.diffusion.reverse(
+          lambda x, var: model.forward_diffusion(vit_features, var, x),
+          torch.randn_like(target) * model.config.init_noise_scale,
+          return_traces=True,
+      )
+    elif mode == "deterministic-x0":
+      hat, _, trace, logtext = model.diffusion.reverse(
           lambda x, var: model.forward_diffusion(vit_features, var, x),
           torch.randn_like(target) * model.config.init_noise_scale,
           return_traces=True,
@@ -97,53 +109,59 @@ def on_select(_, evt: gr.SelectData):
   pano_id = evt.row_value[0]
 
   image, target, country, key = pano_map[pano_id]
-  hat, trace, logtext = reverse_diffusion(pano_id)
-  score = model.geoguess_score(hat, target).item()
-  lat, lon = xyz_to_latlon_torch(*target[0])
-  hat_lat, hat_lon = xyz_to_latlon_torch(*hat[0])
-  hat_radius = torch.norm(hat[0]).item()
-  result = f"Pano ID: {key} ({country})\nScore: {score:.2f}\nRadius: {hat_radius:.4f}\n{logtext}"
-  fig = preview_image(image[0])
+  fig = None
+  folium_map = None
+  result = ""
 
-  map_center = [(lat.item() + hat_lat.item()) / 2, (lon.item() + hat_lon.item()) / 2]
-  folium_map = folium.Map(location=map_center, zoom_start=2)
-  actual_popup = f'<a href="https://www.google.com/maps?q={lat.item()},{lon.item()}" target="_blank">Actual</a>'
-  predicted_popup = f'<a href="https://www.google.com/maps?q={hat_lat.item()},{hat_lon.item()}" target="_blank">Predicted</a>'
-  folium.Marker([lat.item(), lon.item()], popup=actual_popup, icon=folium.Icon(color="green")).add_to(folium_map)
-  folium.Marker([hat_lat.item(), hat_lon.item()], popup=predicted_popup, icon=folium.Icon(color="red")).add_to(folium_map)
+  for seed in range(num_trajectories):
+    seed = None if seed == 0 else seed
+    hat, trace, logtext = reverse_diffusion(pano_id, seed)
+    score = model.geoguess_score(hat, target).item()
+    lat, lon = xyz_to_latlon_torch(*target[0])
+    hat_lat, hat_lon = xyz_to_latlon_torch(*hat[0])
+    hat_radius = torch.norm(hat[0]).item()
+    result += f"Pano ID: {key} ({country})\nScore: {score:.2f}\nRadius: {hat_radius:.4f}\n{logtext}\n\n"
+    fig = preview_image(image[0])
 
-  markers = []
-  trace_coords = []
-  colormap = cm.get_cmap('viridis')
-  for i in range(trace.size(0)):
-    step = i / (trace.size(0) - 1)
-    color = colormap(1 - step)
-    lat, lon = xyz_to_latlon_torch(*trace[i, 0])
-    trace_coords.append([lat.item(), lon.item()])
-    radius = torch.norm(trace[i, 0]).item()
-    popup = f'<a href="https://www.google.com/maps?q={lat.item()},{lon.item()}" target="_blank">Step {i} ({radius:.4f})</a>'
-    markers.append(
-        folium.CircleMarker(
-            [lat.item(), lon.item()],
-            radius=5,
-            popup=popup,
-            color=f"rgb({color[0] * 150:.0f}, {color[1] * 150:.0f}, {color[2] * 150:.0f})",
-            fill_color=f"rgb({color[0] * 255:.0f}, {color[1] * 255:.0f}, {color[2] * 255:.0f})",
-            fill_opacity=0.3,
-            fill=True,
-            opacity=0.5,
-            weight=2,
-        ))
-  trace_coords.append([hat_lat.item(), hat_lon.item()])
+    map_center = [(lat.item() + hat_lat.item()) / 2, (lon.item() + hat_lon.item()) / 2]
+    folium_map = folium_map or folium.Map(location=map_center, zoom_start=2)
+    actual_popup = f'<a href="https://www.google.com/maps?q={lat.item()},{lon.item()}" target="_blank">Actual</a>'
+    predicted_popup = f'<a href="https://www.google.com/maps?q={hat_lat.item()},{hat_lon.item()}" target="_blank">Predicted</a>'
+    folium.Marker([lat.item(), lon.item()], popup=actual_popup, icon=folium.Icon(color="green")).add_to(folium_map)
+    folium.Marker([hat_lat.item(), hat_lon.item()], popup=predicted_popup, icon=folium.Icon(color="red")).add_to(folium_map)
 
-  for i in range(len(trace_coords) - 1):
-    step = i / (len(trace_coords) - 1)
-    color = colormap(1 - step)
-    color = f"rgb({color[0] * 100:.0f}, {color[1] * 100:.0f}, {color[2] * 100:.0f})"
-    folium.PolyLine([trace_coords[i], trace_coords[i + 1]], color=color, weight=2, opacity=0.3).add_to(folium_map)
+    markers = []
+    trace_coords = []
+    colormap = cm.get_cmap('viridis')
+    for i in range(trace.size(0)):
+      step = i / (trace.size(0) - 1)
+      color = colormap(1 - step)
+      lat, lon = xyz_to_latlon_torch(*trace[i, 0])
+      trace_coords.append([lat.item(), lon.item()])
+      radius = torch.norm(trace[i, 0]).item()
+      popup = f'<a href="https://www.google.com/maps?q={lat.item()},{lon.item()}" target="_blank">Step {i} ({radius:.4f})</a>'
+      markers.append(
+          folium.CircleMarker(
+              [lat.item(), lon.item()],
+              radius=5,
+              popup=popup,
+              color=f"rgb({color[0] * 150:.0f}, {color[1] * 150:.0f}, {color[2] * 150:.0f})",
+              fill_color=f"rgb({color[0] * 255:.0f}, {color[1] * 255:.0f}, {color[2] * 255:.0f})",
+              fill_opacity=0.3,
+              fill=True,
+              opacity=0.5,
+              weight=2,
+          ))
+    trace_coords.append([hat_lat.item(), hat_lon.item()])
 
-  for marker in markers:
-    marker.add_to(folium_map)
+    for i in range(len(trace_coords) - 1):
+      step = i / (len(trace_coords) - 1)
+      color = colormap(1 - step)
+      color = f"rgb({color[0] * 100:.0f}, {color[1] * 100:.0f}, {color[2] * 100:.0f})"
+      folium.PolyLine([trace_coords[i], trace_coords[i + 1]], color=color, weight=2, opacity=0.3).add_to(folium_map)
+
+    for marker in markers:
+      marker.add_to(folium_map)
 
   return fig, folium_map._repr_html_(), result
 

@@ -48,6 +48,10 @@ class Diffusion:
     t = torch.randint(1, self.steps, (x.size(0), 1), device=x.device)
     return t.to(x.dtype) / self.steps
 
+  def random_continuous_t(self, x: Tensor) -> Tensor:
+    t = torch.rand(x.size(0), 1, device=x.device, dtype=x.dtype)
+    return t
+
   def compute_loss(self, forward: Forward, x0: Tensor, noise: Tensor, t: Tensor):
     var = self.schedule(t)
     x_with_noise = (1 - var).sqrt() * x0 + var.sqrt() * noise
@@ -111,10 +115,10 @@ def _main():
   schedule = SigmoidSchedule()
   t = np.linspace(0, 1, 100)
   y = schedule(torch.tensor(t)).numpy()
-  plt.plot(t, y)
+  plt.plot(t, y, '.')
   plt.show()
 
-  plt.plot(t, y)
+  plt.plot(t, y, '.')
   plt.yscale('log')
   plt.show()
 
