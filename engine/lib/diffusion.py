@@ -68,7 +68,9 @@ class Diffusion:
       var = self.schedule(t)
       noise_hat = forward(x_with_noise, var)
       x0_hat = (x_with_noise - noise_hat * var.sqrt()) / (1 - var).sqrt()
-      loglines.append(f"{i:>4} var={var.item():.3f} std={var.sqrt().item():.3f} l2_noise={noise_hat.norm(dim=-1).mean().item():.3f}")
+
+      if return_traces:
+        loglines.append(f"{i:>4} var={var.item():.3f} std={var.sqrt().item():.3f} l2_noise={noise_hat.norm(dim=-1).mean().item():.3f}")
 
       if i == 1:
         if return_traces: return x0_hat, torch.stack(x_trace, dim=0), torch.stack(x0_trace, dim=0), "\n".join(loglines)
