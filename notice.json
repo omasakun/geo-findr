@@ -9,6 +9,7 @@
   "excludedPrefix": [".git/", ".husky/", "LICENSE"],
   "excludedSuffix": [
     ".editorconfig",
+    ".envrc",
     ".gitignore",
     ".json",
     ".lock",

@@ -8,6 +8,7 @@
 # auto generated
 
 __pycache__/
+.direnv/
 .ipynb_checkpoints/
 .pnpm-store/
 .venv/

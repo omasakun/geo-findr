@@ -11,6 +11,9 @@
   "[ignore]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide"
+  },
   "[properties]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
